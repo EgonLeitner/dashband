@@ -71,6 +71,11 @@ To load it in every session, including the Desktop app, add the folder to `env` 
   beyond the plan limits), the band shows the cache as warm for too long.
 - The band estimates expiry from the time of the last response. It cannot see the cache on the
   server.
+- **Desktop app: the band shows in one chat at a time.** With several chats open, the app asks
+  only the active one for the band, and chats that were open when the app started may never
+  show it. This is a known issue of the app
+  ([anthropics/claude-code#99265](https://github.com/anthropics/claude-code/issues/99265));
+  the terminal is not affected.
 
 ## Development
 
