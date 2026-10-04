@@ -51,8 +51,12 @@ export const pace = (used: number, expected: number): Pace => {
 export const cacheLeftMs = (reading: CacheReading, now: number): number =>
   Math.max(0, reading.ttlMs - (now - reading.at))
 
-export const cacheColor = (leftMs: number): string =>
-  leftMs <= 0 ? 'gray' : leftMs <= 5 * MINUTE ? 'yellow' : 'green'
+// When to warn before the cache expires: five minutes and one minute ahead, keeping only the
+// times shorter than the cache lifetime (a five-minute cache warns at one minute only).
+export const warnTimes = (ttlMs: number): number[] => [5 * MINUTE, MINUTE].filter(before => before < ttlMs)
+
+export const cacheColor = (leftMs: number, ttlMs: number): string =>
+  leftMs <= 0 ? 'gray' : leftMs <= (warnTimes(ttlMs)[0] ?? 0) ? 'yellow' : 'green'
 
 export const contextColor = (percent: number): string =>
   percent >= 90 ? 'red' : percent >= 75 ? '#e8912d' : 'green'

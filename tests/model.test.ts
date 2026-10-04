@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { HOUR, MINUTE, bar, duration, expectedPercent, pace, readingFromTranscript } from '../hooks/model'
+import { HOUR, MINUTE, bar, cacheColor, duration, expectedPercent, pace, readingFromTranscript, warnTimes } from '../hooks/model'
 
 const WEEK = 7 * 24 * HOUR
 
@@ -51,4 +51,13 @@ test('durations stay short', async () => {
   expect(duration(3 * 24 * HOUR + 4 * HOUR)).toBe('3d 4h')
   expect(duration(2 * HOUR + 15 * MINUTE)).toBe('2h 15m')
   expect(duration(9 * MINUTE)).toBe('9m')
+})
+
+test('warnings and yellow follow the cache lifetime', async () => {
+  expect(warnTimes(HOUR)).toEqual([5 * MINUTE, MINUTE])
+  expect(warnTimes(5 * MINUTE)).toEqual([MINUTE])
+  expect(cacheColor(4 * MINUTE, HOUR)).toBe('yellow')
+  expect(cacheColor(4 * MINUTE, 5 * MINUTE)).toBe('green')
+  expect(cacheColor(30_000, 5 * MINUTE)).toBe('yellow')
+  expect(cacheColor(0, 5 * MINUTE)).toBe('gray')
 })

@@ -13,6 +13,7 @@ import {
   cacheColor,
   cacheLeftMs,
   contextColor,
+  warnTimes,
   duration,
   expectedPercent,
   hitRatio,
@@ -23,7 +24,6 @@ import {
 const TICK_MS = 15_000
 const BAR_WIDTH = 24
 const TAIL_BYTES = 262_144
-const WARN_BEFORE_MS = [5 * MINUTE, MINUTE]
 
 const cache = atom({ plugin: 'dashband', key: 'cache' } as const, null)
 const usage = atom({ plugin: 'dashband', key: 'usage' } as const, null)
@@ -46,6 +46,12 @@ const trace = async ($: EngineInterface, message: string) => {
 }
 
 let transcriptPath: string | null = null
+// The transcript may not hold the last response yet when its turn completes: look again on the
+// next ticks until the entry shows up.
+const TTL_LOOKUPS = 8
+let ttlPending: { after: number; lookups: number } | null = null
+// Time of the newest transcript entry already read, to tell a new one apart.
+let transcriptSeenAt = 0
 let statusShown: string | undefined
 const warned = new Set<string>()
 const renders: Record<string, number> = {}
@@ -116,6 +122,20 @@ const pullSharedLimits = async ($: EngineInterface) => {
   }))
 }
 
+// Reads the cache lifetime of the last response, once its entry is in the transcript.
+const lookUpTtl = async ($: EngineInterface) => {
+  if (ttlPending === null) return
+  ttlPending.lookups++
+  const reading = await transcriptReading($)
+  const isCurrent = reading !== null && reading.at > ttlPending.after
+  if (reading && isCurrent) {
+    transcriptSeenAt = reading.at
+    await update($, cache, prev => (prev ? { ...prev, ttlMs: reading.ttlMs } : reading))
+  }
+  await trace($, `ttl lookup #${ttlPending.lookups} found=${isCurrent} ttl=${reading ? reading.ttlMs / MINUTE : '?'}m`)
+  if (isCurrent || ttlPending.lookups >= TTL_LOOKUPS) ttlPending = null
+}
+
 const refreshUsage = async ($: EngineInterface) => {
   const u = await $.session.usage()
   const reading = await withSharedLimits($, toUsage(u.context, u.rateLimits))
@@ -127,7 +147,7 @@ const warnBeforeExpiry = async ($: EngineInterface, t: number) => {
   if (reading === null || (await read($, working))) return
 
   const left = cacheLeftMs(reading, t)
-  for (const before of WARN_BEFORE_MS) {
+  for (const before of warnTimes(reading.ttlMs)) {
     const key = `${reading.at}:${before}`
     if (left > 0 && left <= before && !warned.has(key)) {
       warned.add(key)
@@ -180,6 +200,7 @@ export const register: Register = on => {
   on('classic.SessionStart', async ($, e, next) => {
     transcriptPath = e.transcript_path
     const reading = await transcriptReading($)
+    transcriptSeenAt = reading?.at ?? 0
     await update($, cache, () => reading)
     await trace($, `classic.SessionStart source=${e.source} reading=${reading !== null}`)
     return next(e)
@@ -190,6 +211,7 @@ export const register: Register = on => {
     $.clock.every(TICK_MS, async () => {
       const t = await $.clock.now()
       await update($, now, () => t)
+      await lookUpTtl($)
       await warnBeforeExpiry($, t)
       await pullSharedLimits($)
       await pushStatus($)
@@ -197,6 +219,7 @@ export const register: Register = on => {
     await refreshUsage($)
     if ((await read($, cache)) === null) {
       const reading = await transcriptReading($)
+      transcriptSeenAt = reading?.at ?? 0
       await update($, cache, prev => prev ?? reading)
     }
     await pushStatus($)
@@ -241,11 +264,10 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     if (!e.agentId) {
       await update($, working, () => false)
-      const reading = await transcriptReading($)
-      if (reading) await update($, cache, prev => (prev ? { ...prev, ttlMs: reading.ttlMs } : reading))
+      ttlPending = { after: transcriptSeenAt, lookups: 0 }
+      await lookUpTtl($)
       await refreshUsage($)
       await pushStatus($)
-      await trace($, `turn.complete ttl=${reading ? reading.ttlMs / MINUTE : '?'}m`)
     }
     return next(e)
   })
@@ -268,7 +290,7 @@ export const register: Register = on => {
         parts.push(<Text dimColor>● …</Text>)
       } else {
         const left = cacheLeftMs(reading, t)
-        parts.push(<Text color={cacheColor(left)}>● {left > 0 ? `${Math.ceil(left / MINUTE)}m` : 'cold'}</Text>)
+        parts.push(<Text color={cacheColor(left, reading.ttlMs)}>● {left > 0 ? `${Math.ceil(left / MINUTE)}m` : 'cold'}</Text>)
       }
       if (u?.contextPercent != null) {
         parts.push(<Text dimColor> · </Text>)
@@ -333,7 +355,7 @@ export const register: Register = on => {
       rows.push(<Text dimColor>● prompt cache: waiting for the next response</Text>)
     } else {
       const left = isWorking ? reading.ttlMs : cacheLeftMs(reading, t)
-      const color = isWorking ? 'green' : cacheColor(left)
+      const color = isWorking ? 'green' : cacheColor(left, reading.ttlMs)
       const status = isWorking ? 'hot' : left > 0 ? `${Math.ceil(left / MINUTE)}m` : 'cold'
       rows.push(
         <Box>
