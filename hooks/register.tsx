@@ -30,18 +30,15 @@ const usage = atom({ plugin: 'dashband', key: 'usage' } as const, null)
 const working = atom({ plugin: 'dashband', key: 'working' } as const, false)
 const now = atom({ plugin: 'dashband', key: 'now' } as const, 0)
 
-// Optional trace for troubleshooting: off unless this directory exists
-// (`mkdir /tmp/dashband-trace`). Each session writes its own log there.
+// Optional trace for troubleshooting: on while this directory exists
+// (`mkdir /tmp/dashband-trace`). Each session writes its own log there. Checked on every
+// entry, because writing a log would otherwise recreate the directory after it was removed.
 const TRACE_DIR = '/tmp/dashband-trace'
 const TRACE_MAX_LINES = 500
-let isTracing: boolean | null = null
 const traceLines: string[] = []
 
 const trace = async ($: EngineInterface, message: string) => {
-  if (isTracing === null) {
-    isTracing = await $.fs.exists(TRACE_DIR)
-  }
-  if (!isTracing) return
+  if (!(await $.fs.exists(TRACE_DIR))) return
 
   traceLines.push(`${new Date(await $.clock.now()).toISOString()} ${message}`)
   if (traceLines.length > TRACE_MAX_LINES) traceLines.shift()
