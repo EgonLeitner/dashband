@@ -159,6 +159,7 @@ const warnBeforeExpiry = async ($: EngineInterface, t: number) => {
       const tokens = (await read($, usage))?.contextTokens
       const rewrite = tokens ? `; the next request rewrites about ${Math.round(tokens / 1000)}k tokens` : ''
       $.ui.toast(`Prompt cache expires in ${Math.ceil(left / MINUTE)} min${rewrite}`, { timeoutMs: 10_000 })
+      await trace($, `toast left=${Math.round(left / 1000)}s before=${before / MINUTE}m`)
     }
   }
 }
@@ -203,6 +204,9 @@ const countRender = async ($: EngineInterface, site: string, surface: string) =>
 
 export const register: Register = on => {
   on('classic.SessionStart', async ($, e, next) => {
+    // Set the clock first: the band may draw before session.start runs.
+    const t = await $.clock.now()
+    await update($, now, () => t)
     transcriptPath = e.transcript_path
     const reading = await transcriptReading($)
     transcriptSeenAt = reading?.at ?? 0
@@ -212,7 +216,8 @@ export const register: Register = on => {
   })
 
   on('session.start', async ($, e, next) => {
-    await update($, now, async () => await $.clock.now())
+    const t0 = await $.clock.now()
+    await update($, now, () => t0)
     $.clock.every(TICK_MS, async () => {
       const t = await $.clock.now()
       await update($, now, () => t)
