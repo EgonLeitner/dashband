@@ -1,0 +1,9 @@
+{
+  "name": "dashband",
+  "version": "0.1.0",
+  "description": "Band above the prompt showing prompt cache warmth, time to expiry and hit ratio",
+  "author": { "name": "Egon Leitner" },
+  "license": "MIT",
+  "keywords": ["prompt-cache", "mod", "status", "tokens"],
+  "types": "./types/index.d.ts"
+}
