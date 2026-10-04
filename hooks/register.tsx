@@ -48,7 +48,9 @@ const trace = async ($: EngineInterface, message: string) => {
 let transcriptPath: string | null = null
 // The transcript may not hold the last response yet when its turn completes: look again on the
 // next ticks until the entry shows up.
-const TTL_LOOKUPS = 8
+const TTL_LOOKUPS = 10
+// The entry usually lands within seconds: look again soon before falling back to the ticks.
+const TTL_QUICK_LOOKUPS_MS = [1_500, 4_000]
 let ttlPending: { after: number; lookups: number } | null = null
 // Time of the newest transcript entry already read, to tell a new one apart.
 let transcriptSeenAt = 0
@@ -266,6 +268,9 @@ export const register: Register = on => {
       await update($, working, () => false)
       ttlPending = { after: transcriptSeenAt, lookups: 0 }
       await lookUpTtl($)
+      for (const ms of TTL_QUICK_LOOKUPS_MS) {
+        $.clock.after(ms, () => void lookUpTtl($))
+      }
       await refreshUsage($)
       await pushStatus($)
     }
