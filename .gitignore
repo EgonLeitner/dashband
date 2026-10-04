@@ -1,0 +1,4 @@
+.DS_Store
+
+# Type declarations Claude Code writes for the running version
+.claude-plugin/types/
