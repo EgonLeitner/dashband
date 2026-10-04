@@ -18,6 +18,7 @@ import {
   expectedPercent,
   hitRatio,
   pace,
+  parseResetsAt,
   readingFromTranscript,
 } from './model'
 
@@ -64,7 +65,7 @@ const toUsage = (context: SessionContextUsage, limits: readonly SessionRateLimit
   limits: limits.map(l => ({
     kind: l.kind,
     used: l.percentUsed,
-    resetsAt: l.resetsAt ? Date.parse(l.resetsAt) : null,
+    resetsAt: parseResetsAt(l.resetsAt),
   })),
 })
 
@@ -102,14 +103,16 @@ let limitsAt = 0
 
 const withSharedLimits = async ($: EngineInterface, reading: UsageReading): Promise<UsageReading> => {
   const t = await $.clock.now()
-  if (reading.limits.length > 0) {
+  const isComplete = reading.limits.length > 0 && reading.limits.every(l => l.resetsAt !== null)
+  if (isComplete) {
     limitsAt = t
     await $.store.set(LIMITS_KEY, { at: t, limits: reading.limits })
     return reading
   }
+  // No limits yet, or some without a readable reset time: a stored reading is the better one.
   const stored = (await $.store.get(LIMITS_KEY)) as StoredLimits | undefined
-  if (!stored) return reading
-  return { ...reading, limits: stored.limits.filter(l => l.resetsAt === null || l.resetsAt > t) }
+  const valid = stored?.limits.filter(l => l.resetsAt !== null && l.resetsAt > t) ?? []
+  return valid.length > 0 ? { ...reading, limits: valid } : reading
 }
 
 // Takes a fresher reading another session stored.
@@ -219,6 +222,7 @@ export const register: Register = on => {
       await pushStatus($)
     })
     await refreshUsage($)
+    await trace($, `limits at start: ${JSON.stringify((await $.session.usage()).rateLimits)}`)
     if ((await read($, cache)) === null) {
       const reading = await transcriptReading($)
       transcriptSeenAt = reading?.at ?? 0

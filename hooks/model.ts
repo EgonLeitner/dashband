@@ -34,6 +34,16 @@ export const PACE_COLOR: Record<Pace, string> = {
   'far-over': 'red',
 }
 
+// A reset time as milliseconds since the epoch, from an ISO timestamp or epoch seconds or
+// milliseconds; null when it cannot be read.
+export const parseResetsAt = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') return null
+  const text = String(value).trim()
+  const n = typeof value === 'number' || /^\d+(\.\d+)?$/.test(text) ? Number(text) : Date.parse(text)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n < 1e12 ? n * 1000 : n
+}
+
 // Where usage of a window should be by now if it were spread evenly, 0 to 100.
 export const expectedPercent = (windowMs: number, resetsAt: number, now: number): number => {
   const elapsed = windowMs - (resetsAt - now)
