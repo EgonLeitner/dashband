@@ -30,7 +30,7 @@ until they reset.
 
 | Item | Meaning |
 |---|---|
-| `● 42m` | Time left until the prompt cache expires: green while more than 5 minutes are left, yellow in the last 5 minutes, gray `cold` once expired, `hot` while Claude is working |
+| `● 42m` | Time left until the prompt cache expires: green while more than 2 minutes are left, yellow in the last 2 minutes, gray `cold` once expired, `hot` while Claude is working |
 | `100% hit` (band) | Share of the last response's input tokens read from the cache |
 | `ctx 31%` | How full the context window is: green, orange from 75 %, red from 90 % |
 | `5h 12%/40%` | Five-hour limit: used, and where usage would be by now if spread evenly over the window |
@@ -49,8 +49,8 @@ In the terminal, the footer shows everything as one colored item. The Desktop ap
 item short, so there cache and context appear in the status line, which the app labels with the
 mod's name and draws without colors, and the limits follow as a colored item. The band adds a bar
 for each item. On the limit bars, `│` marks where usage would be by now.
-Five minutes and one minute before the cache expires, a notice says so and how many tokens the
-next request would write again.
+Two minutes before the cache expires, the cache turns yellow and a notice stays for a minute,
+saying how many tokens the next request would write again.
 
 The cache lifetime, five minutes or one hour, is read from the session transcript. The plan
 limits appear only on a Claude subscription.

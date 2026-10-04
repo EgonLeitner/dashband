@@ -8,12 +8,12 @@ import {
   LIMIT_NAME,
   MINUTE,
   PACE_COLOR,
+  WARN_BEFORE_MS,
   WINDOW_MS,
   bar,
   cacheColor,
   cacheLeftMs,
   contextColor,
-  warnTimes,
   duration,
   expectedPercent,
   hitRatio,
@@ -56,7 +56,7 @@ let ttlPending: { after: number; lookups: number } | null = null
 // Time of the newest transcript entry already read, to tell a new one apart.
 let transcriptSeenAt = 0
 let statusShown: string | undefined
-const warned = new Set<string>()
+const warned = new Set<number>()
 const renders: Record<string, number> = {}
 
 const toUsage = (context: SessionContextUsage, limits: readonly SessionRateLimit[]): UsageReading => ({
@@ -152,15 +152,12 @@ const warnBeforeExpiry = async ($: EngineInterface, t: number) => {
   if (reading === null || (await read($, working))) return
 
   const left = cacheLeftMs(reading, t)
-  for (const before of warnTimes(reading.ttlMs)) {
-    const key = `${reading.at}:${before}`
-    if (left > 0 && left <= before && !warned.has(key)) {
-      warned.add(key)
-      const tokens = (await read($, usage))?.contextTokens
-      const rewrite = tokens ? `; the next request rewrites about ${Math.round(tokens / 1000)}k tokens` : ''
-      $.ui.toast(`Prompt cache expires in ${Math.ceil(left / MINUTE)} min${rewrite}`, { timeoutMs: 10_000 })
-      await trace($, `toast left=${Math.round(left / 1000)}s before=${before / MINUTE}m`)
-    }
+  if (left > 0 && left <= WARN_BEFORE_MS && !warned.has(reading.at)) {
+    warned.add(reading.at)
+    const tokens = (await read($, usage))?.contextTokens
+    const rewrite = tokens ? `; the next request rewrites about ${Math.round(tokens / 1000)}k tokens` : ''
+    $.ui.toast(`Prompt cache expires in ${Math.ceil(left / MINUTE)} min${rewrite}`, { timeoutMs: 60_000 })
+    await trace($, `toast left=${Math.round(left / 1000)}s`)
   }
 }
 
@@ -304,7 +301,7 @@ export const register: Register = on => {
         parts.push(<Text dimColor>● …</Text>)
       } else {
         const left = cacheLeftMs(reading, t)
-        parts.push(<Text color={cacheColor(left, reading.ttlMs)}>● {left > 0 ? `${Math.ceil(left / MINUTE)}m` : 'cold'}</Text>)
+        parts.push(<Text color={cacheColor(left)}>● {left > 0 ? `${Math.ceil(left / MINUTE)}m` : 'cold'}</Text>)
       }
       if (u?.contextPercent != null) {
         parts.push(<Text dimColor> · </Text>)
@@ -369,7 +366,7 @@ export const register: Register = on => {
       rows.push(<Text dimColor>● prompt cache: waiting for the next response</Text>)
     } else {
       const left = isWorking ? reading.ttlMs : cacheLeftMs(reading, t)
-      const color = isWorking ? 'green' : cacheColor(left, reading.ttlMs)
+      const color = isWorking ? 'green' : cacheColor(left)
       const status = isWorking ? 'hot' : left > 0 ? `${Math.ceil(left / MINUTE)}m` : 'cold'
       rows.push(
         <Box>
