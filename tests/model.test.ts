@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { HOUR, MINUTE, bar, cacheColor, duration, expectedPercent, pace, parseResetsAt, readingFromTranscript } from '../hooks/model'
+import { HOUR, MINUTE, bar, cacheColor, currentLimit, duration, expectedPercent, pace, parseResetsAt, readingFromTranscript } from '../hooks/model'
 
 const WEEK = 7 * 24 * HOUR
 
@@ -67,4 +67,21 @@ test('reset times read from ISO, epoch seconds and epoch milliseconds', async ()
   expect(parseResetsAt(ms)).toBe(ms)
   expect(parseResetsAt('soon')).toBe(null)
   expect(parseResetsAt(undefined)).toBe(null)
+})
+
+test('a limit read before its window reset no longer counts', async () => {
+  const reset = Date.parse('2026-10-05T05:00:00.000Z')
+  const now = reset + 37 * MINUTE
+  expect(currentLimit({ kind: 'seven_day', used: 77, resetsAt: reset }, now)).toEqual({
+    kind: 'seven_day',
+    used: 0,
+    resetsAt: reset + WEEK,
+  })
+  expect(currentLimit({ kind: 'five_hour', used: 26, resetsAt: reset }, now)).toEqual({
+    kind: 'five_hour',
+    used: 0,
+    resetsAt: null,
+  })
+  const fresh = { kind: 'seven_day', used: 5, resetsAt: reset + WEEK }
+  expect(currentLimit(fresh, now)).toBe(fresh)
 })

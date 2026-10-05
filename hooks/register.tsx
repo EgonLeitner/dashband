@@ -14,6 +14,7 @@ import {
   cacheColor,
   cacheLeftMs,
   contextColor,
+  currentLimit,
   duration,
   expectedPercent,
   hitRatio,
@@ -308,7 +309,7 @@ export const register: Register = on => {
         parts.push(<Text color={contextColor(u.contextPercent)}>ctx {u.contextPercent}%</Text>)
       }
     }
-    for (const limit of u?.limits ?? []) {
+    for (const limit of (u?.limits ?? []).map(l => currentLimit(l, t))) {
       const name = LIMIT_LABEL[limit.kind]
       const windowMs = WINDOW_MS[limit.kind]
       if (!name || !windowMs) continue
@@ -388,10 +389,21 @@ export const register: Register = on => {
         </Box>,
       )
     }
-    for (const limit of u?.limits ?? []) {
+    for (const limit of (u?.limits ?? []).map(l => currentLimit(l, t))) {
       const name = LIMIT_NAME[limit.kind]
       const windowMs = WINDOW_MS[limit.kind]
-      if (!name || !windowMs || limit.resetsAt === null) continue
+      if (!name || !windowMs) continue
+      if (limit.resetsAt === null) {
+        rows.push(
+          <Box>
+            {label(`  ${name}`)}
+            {value(`${Math.round(limit.used)}%`, 'gray')}
+            {cells(limit.used, 'gray')}
+            <Text dimColor> starts with the next request</Text>
+          </Box>,
+        )
+        continue
+      }
       const expected = expectedPercent(windowMs, limit.resetsAt, t)
       const color = PACE_COLOR[pace(limit.used, expected)]
       rows.push(

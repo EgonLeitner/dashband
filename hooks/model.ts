@@ -1,4 +1,4 @@
-import type { CacheReading } from '../types'
+import type { CacheReading, LimitReading } from '../types'
 
 export const MINUTE = 60_000
 export const HOUR = 60 * MINUTE
@@ -42,6 +42,17 @@ export const parseResetsAt = (value: unknown): number | null => {
   const n = typeof value === 'number' || /^\d+(\.\d+)?$/.test(text) ? Number(text) : Date.parse(text)
   if (!Number.isFinite(n) || n <= 0) return null
   return n < 1e12 ? n * 1000 : n
+}
+
+// A limit as it stands now. A reading taken before its window reset is stale: the weekly window
+// restarts at the same time a week later, a five-hour window only with the next request.
+export const currentLimit = (limit: LimitReading, now: number): LimitReading => {
+  if (limit.resetsAt === null || limit.resetsAt > now) return limit
+  const windowMs = WINDOW_MS[limit.kind]
+  if (limit.kind !== 'seven_day' || !windowMs) return { ...limit, used: 0, resetsAt: null }
+  let resetsAt = limit.resetsAt
+  while (resetsAt <= now) resetsAt += windowMs
+  return { ...limit, used: 0, resetsAt }
 }
 
 // Where usage of a window should be by now if it were spread evenly, 0 to 100.
