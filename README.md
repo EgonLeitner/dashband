@@ -3,13 +3,21 @@
 A [Claude Code](https://code.claude.com) mod that shows the prompt cache, the context window and
 your plan limits at a glance: in the prompt footer, and as a band with bars above the prompt.
 
-Footer:
+In the terminal:
+
+![dashband in the terminal: a band with bars above the prompt and one colored item in the footer](docs/dashband-terminal.png)
+
+In the Code tab of the Claude Desktop app:
+
+![dashband in the Claude Desktop app: the band above the prompt, cache and context in the status line, the limits in the footer](docs/dashband-desktop.png)
+
+As text, the footer:
 
 ```
-dashband ● 42m · ctx 31% · 5h 12%/40% · WL 70%/96%
+● 42m · ctx 31% · 5h 12%/40% · WL 70%/96%
 ```
 
-Band:
+and the band:
 
 ```
 ● prompt cache  42m       ■■■■■■■■■■■■■■■■■■■■■■■■ 100% hit · 1h cache
