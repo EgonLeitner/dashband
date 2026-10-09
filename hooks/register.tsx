@@ -58,6 +58,9 @@ let ttlPending: { after: number; lookups: number } | null = null
 let transcriptSeenAt = 0
 let statusShown: string | undefined
 const warned = new Set<number>()
+// Turns that started and have not completed. turn.start does not say whether a turn is the main
+// conversation's, so working means any turn is running; every start is matched by its completion.
+const activeTurns = new Set<string>()
 const renders: Record<string, number> = {}
 
 const toUsage = (context: SessionContextUsage, limits: readonly SessionRateLimit[]): UsageReading => ({
@@ -154,6 +157,7 @@ const warnBeforeExpiry = async ($: EngineInterface, t: number) => {
 
   const left = cacheLeftMs(reading, t)
   if (left > 0 && left <= WARN_BEFORE_MS && !warned.has(reading.at)) {
+    if (warned.size > 100) warned.clear()
     warned.add(reading.at)
     const tokens = (await read($, usage))?.contextTokens
     const rewrite = tokens ? `; the next request rewrites about ${Math.round(tokens / 1000)}k tokens` : ''
@@ -225,7 +229,6 @@ export const register: Register = on => {
       await pushStatus($)
     })
     await refreshUsage($)
-    await trace($, `limits at start: ${JSON.stringify((await $.session.usage()).rateLimits)}`)
     if ((await read($, cache)) === null) {
       const reading = await transcriptReading($)
       transcriptSeenAt = reading?.at ?? 0
@@ -254,6 +257,7 @@ export const register: Register = on => {
   })
 
   on('turn.start', async ($, e, next) => {
+    activeTurns.add(e.turnId)
     await update($, working, () => true)
     await pushStatus($)
     return next(e)
@@ -271,16 +275,17 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
+    activeTurns.delete(e.turnId)
+    await update($, working, () => activeTurns.size > 0)
     if (!e.agentId) {
-      await update($, working, () => false)
       ttlPending = { after: transcriptSeenAt, lookups: 0 }
       await lookUpTtl($)
       for (const ms of TTL_QUICK_LOOKUPS_MS) {
         $.clock.after(ms, () => void lookUpTtl($))
       }
       await refreshUsage($)
-      await pushStatus($)
     }
+    await pushStatus($)
     return next(e)
   })
 
