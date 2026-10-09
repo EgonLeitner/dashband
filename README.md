@@ -65,7 +65,8 @@ limits appear only on a Claude subscription.
 
 ## Requirements
 
-- Claude Code with mod support (2.1.287 or later)
+- Claude Code with mod support (2.1.287 or later); tested with Claude Code 2.1.289 in the
+  terminal and the Claude Desktop app 2.31226
 - The terminal (CLI) or the Code tab of the Claude Desktop app. Mods do not draw in the
   VS Code extension, on mobile, or in `claude -p`.
 - macOS or Linux for the cache lifetime: dashband reads the transcript with `sh` and `tail`.
@@ -75,9 +76,8 @@ limits appear only on a Claude subscription.
 
 dashband is listed in the `egonleitner` marketplace:
 
-<!-- Replace OWNER with the GitHub account on first publication. -->
 ```bash
-claude plugin marketplace add OWNER/claude-code-mods
+claude plugin marketplace add EgonLeitner/claude-code-mods
 claude plugin install dashband@egonleitner
 ```
 

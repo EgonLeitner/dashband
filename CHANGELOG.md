@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-09
+
 ### Added
 
 - Footer item in every chat with the prompt cache countdown, the cache hit ratio, context usage
@@ -15,3 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cache lifetime, five minutes or one hour, read from the session transcript
 - A notice two minutes before the prompt cache expires
 - Optional trace for troubleshooting
+
+[Unreleased]: https://github.com/EgonLeitner/dashband/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/EgonLeitner/dashband/releases/tag/v0.1.0
