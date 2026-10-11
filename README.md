@@ -121,8 +121,9 @@ To load it in every session, including the Desktop app, add the folder to `env` 
   show it. This is a known issue of the app
   ([anthropics/claude-code#99265](https://github.com/anthropics/claude-code/issues/99265)).
   The footer item shows in every chat; the terminal is not affected.
-- **Desktop app: after an app start, a chat shows dashband once you have sent a message in it.**
-  The app starts Claude Code for a chat only then.
+- **Desktop app: a new chat shows dashband once you have sent the first message in it.** The app
+  starts Claude Code for a chat only then. A chat with an existing conversation shows it shortly
+  after you open it, also after an app start.
 
 ## Development
 
