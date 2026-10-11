@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-11
+
+### Added
+
+- Installation steps for the Claude Desktop app in the README
+
+### Fixed
+
+- README: only a new chat in the Desktop app waits for the first message; a chat with an
+  existing conversation shows dashband shortly after it is opened
+
 ## [0.1.0] - 2026-10-09
 
 ### Added
@@ -18,5 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A notice two minutes before the prompt cache expires
 - Optional trace for troubleshooting
 
-[Unreleased]: https://github.com/EgonLeitner/dashband/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/EgonLeitner/dashband/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/EgonLeitner/dashband/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/EgonLeitner/dashband/releases/tag/v0.1.0
