@@ -74,7 +74,17 @@ limits appear only on a Claude subscription.
 
 ## Installation
 
-dashband is listed in the `egonleitner` marketplace:
+dashband is listed in the `egonleitner` marketplace.
+
+### Claude Desktop app
+
+1. Open **Settings > Plugins**. On macOS, choose **Claude > Settings** in the menu bar.
+2. Click **+ Add marketplace**, then **Add from a repository**.
+3. Enter `EgonLeitner/claude-code-mods` as the URL and click **Sync**. The marketplace shows
+   Dashband.
+4. Click **Add**. The app confirms that Dashband is installed and ready to use.
+
+### Terminal
 
 ```bash
 claude plugin marketplace add EgonLeitner/claude-code-mods
