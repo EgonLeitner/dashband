@@ -6,11 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-28
+
 ### Changed
 
 - The band above the prompt is compact: short labels and a tooltip on each row with the details.
   The Desktop app draws it as a small SVG, the terminal as narrower text.
 - Plan limits show used and expected usage with a percent sign, as `23/53%`.
+- README: the Desktop app now draws the band in every chat (anthropics/claude-code#99265 is fixed)
 
 ### Added
 
@@ -47,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A notice two minutes before the prompt cache expires
 - Optional trace for troubleshooting
 
-[Unreleased]: https://github.com/EgonLeitner/dashband/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/EgonLeitner/dashband/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/EgonLeitner/dashband/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/EgonLeitner/dashband/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/EgonLeitner/dashband/releases/tag/v0.1.0

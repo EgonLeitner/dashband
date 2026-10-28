@@ -133,8 +133,7 @@ const HEX: Record<string, string> = {
   red: '#d9534f',
   gray: '#8a8a8a',
 }
-// The session id: a shade darker than the info blue of the Mesodia styleguide (acc-info-h #3BA3D0),
-// still readable on light and dark.
+// The session id: a mid blue, readable on light and dark.
 export const ID_COLOR = '#2F8DBF'
 const hex = (color: string) => HEX[color] ?? color
 // A bar on pace draws green; its value stays gray.

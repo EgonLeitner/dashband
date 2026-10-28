@@ -9,7 +9,7 @@ In the terminal:
 
 In the Code tab of the Claude Desktop app:
 
-![dashband in the Claude Desktop app: the band above the prompt, cache and context in the status line, the limits in the footer](docs/dashband-desktop.png)
+![dashband in the Claude Desktop app: the band above the prompt with the session id and the Settings button, cache and context in the status line, the limits in the footer](docs/dashband-desktop.png)
 
 As text, the footer:
 
@@ -17,14 +17,17 @@ As text, the footer:
 ● 42m · ctx 31% · 5h 12%/40% · WL 70%/96%
 ```
 
-and the band:
+and the band in the terminal:
 
 ```
-● prompt cache  42m       ■■■■■■■■■■■■■■■■■■■■■■■■ 100% hit · 1h cache
-  context       31%       ■■■■■■■■■■■■■■■■■■■■■■■■ 310k tokens
-  5-hour limit  12%/40%   ■■■■■■■■■■■■■■■■■■■■■■■■ resets in 3h 0m
-  weekly limit  70%/96%   ■■■■■■■■■■■■■■■■■■■■■■■│ resets in 7h 0m
+● cache 42m      ■■■■■■■■■■■□□□□□ 100% · 1h · ID 46b74c3d
+ctx     31%      ■■■■■□□□□□□□□□□□ 310k
+5h      12/40%   ■■□□□□│□□□□□□□□□ ↻ 3h 0m
+week    70/96%   ■■■■■■■■■■■□□□□│ ↻ 7h 0m
 ```
+
+The Desktop app draws the band as a small graphic with finer bars, the session id and a
+**Settings** button on the right. Each row shows its details as a tooltip.
 
 ## Why
 
@@ -39,9 +42,11 @@ until they reset.
 | Item | Meaning |
 |---|---|
 | `● 42m` | Time left until the prompt cache expires: green while more than 2 minutes are left, yellow in the last 2 minutes, gray `cold` once expired, `hot` while Claude is working |
-| `100% hit` (band) | Share of the last response's input tokens read from the cache |
+| `100%` (band) | Share of the last response's input tokens read from the cache; then the cache lifetime |
 | `ctx 31%` | How full the context window is: green, orange from 75 %, red from 90 % |
 | `5h 12%/40%` | Five-hour limit: used, and where usage would be by now if spread evenly over the window |
+| `↻ 3h 0m` (band) | Time until the limit resets |
+| `ID 46b74c3d` (band) | The first eight characters of the session id, to tell chats apart |
 | `WL 70%/96%` | Weekly limit, the same way |
 
 The limits are colored by pace, used minus expected:
@@ -51,22 +56,34 @@ The limits are colored by pace, used minus expected:
 | green | 10 points or more below |
 | gray | about on pace |
 | orange | up to 15 points above |
-| red | more than 15 points above |
+| red | more than 15 points above, or the limit is used up |
 
 In the terminal, the footer shows everything as one colored item. The Desktop app cuts a footer
 item short, so there cache and context appear in the status line, which the app labels with the
 mod's name and draws without colors, and the limits follow as a colored item. The band adds a bar
 for each item. On the limit bars, `│` marks where usage would be by now.
 Two minutes before the cache expires, the cache turns yellow and a notice stays for a minute,
-saying how many tokens the next request would write again.
+naming the session and saying how many tokens the next request would write again.
+
+## Settings
+
+In the Desktop app, **⚙ Settings** beside the band opens the settings below it. They apply to
+every chat.
+
+![dashband in the Claude Desktop app with the settings open below the band: size S, M or L, and limits expected by now or by midnight](docs/dashband-desktop-settings.png)
+
+| Setting | Choices |
+|---|---|
+| Size | `S`, `M`, `L`: the size of the band |
+| Limits expected by | `Now`: where usage would be by now. `Midnight`: where it may be at the end of the day (local time), or at the reset if that comes first |
 
 The cache lifetime, five minutes or one hour, is read from the session transcript. The plan
 limits appear only on a Claude subscription.
 
 ## Requirements
 
-- Claude Code with mod support (2.1.287 or later); tested with Claude Code 2.1.289 in the
-  terminal and the Claude Desktop app 2.31226
+- Claude Code with mod support (2.1.287 or later); tested with Claude Code 2.1.295 in the
+  terminal and the Claude Desktop app
 - The terminal (CLI) or the Code tab of the Claude Desktop app. Mods do not draw in the
   VS Code extension, on mobile, or in `claude -p`.
 - macOS or Linux for the cache lifetime: dashband reads the transcript with `sh` and `tail`.
@@ -116,14 +133,15 @@ To load it in every session, including the Desktop app, add the folder to `env` 
 
 - The countdown estimates expiry from the time of the last response. It cannot see the cache on
   the server.
-- **Desktop app: the band shows in one chat at a time.** With several chats open, the app asks
-  only the active one for the band, and chats that were open when the app started may never
-  show it. This is a known issue of the app
-  ([anthropics/claude-code#99265](https://github.com/anthropics/claude-code/issues/99265)).
-  The footer item shows in every chat; the terminal is not affected.
 - **Desktop app: a new chat shows dashband once you have sent the first message in it.** The app
   starts Claude Code for a chat only then. A chat with an existing conversation shows it shortly
-  after you open it, also after an app start.
+  after you open it, also after an app start; one that waits for your answer to a question
+  shows it once you have answered.
+- Settings are available in the Desktop app only; the terminal draws the band as text.
+
+Older versions of the Desktop app drew the band in only one chat at a time
+([anthropics/claude-code#99265](https://github.com/anthropics/claude-code/issues/99265), fixed
+in October 2026).
 
 ## Development
 

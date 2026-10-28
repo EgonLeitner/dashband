@@ -1,6 +1,6 @@
 {
   "name": "dashband",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Prompt cache, context and plan limits at a glance, in the prompt footer and above the prompt",
   "author": {
     "name": "Egon Leitner"
