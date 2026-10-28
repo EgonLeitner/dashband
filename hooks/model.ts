@@ -61,13 +61,19 @@ export const expectedPercent = (windowMs: number, resetsAt: number, now: number)
   return Math.min(100, Math.max(0, (elapsed / windowMs) * 100))
 }
 
+// An exhausted limit is always far over, however close the expected usage is.
 export const pace = (used: number, expected: number): Pace => {
+  if (used >= 100) return 'far-over'
   const ahead = used - expected
   if (ahead <= PACE_UNDER) return 'under'
   if (ahead <= PACE_OVER) return 'on'
   if (ahead <= PACE_FAR_OVER) return 'over'
   return 'far-over'
 }
+
+// The leading characters of a session id: enough to tell sessions apart, as git does with commits.
+export const SHORT_ID_LENGTH = 8
+export const shortId = (id: string): string => id.slice(0, SHORT_ID_LENGTH)
 
 export const cacheLeftMs = (reading: CacheReading, now: number): number =>
   Math.max(0, reading.ttlMs - (now - reading.at))

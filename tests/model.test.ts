@@ -14,8 +14,9 @@ test('expected usage follows the elapsed share of the window', async () => {
 test('pace colors usage against where it should be', async () => {
   expect(pace(50, 96)).toBe('under')
   expect(pace(94, 96)).toBe('on')
-  expect(pace(100, 92)).toBe('over')
+  expect(pace(99, 92)).toBe('over')
   expect(pace(80, 50)).toBe('far-over')
+  expect(pace(100, 98)).toBe('far-over')
 })
 
 test('the transcript gives the last response and the latest cache lifetime', async () => {

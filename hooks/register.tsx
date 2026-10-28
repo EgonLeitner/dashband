@@ -2,10 +2,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage, SessionRateLimit } from 'claude-code'
 
 import type { CacheReading, LimitReading, UsageReading } from '../types'
+import { BAR_CELLS, ID_COLOR, SVG_WIDTH, bandAlt, bandRows, bandSvg, barColor, svgHeight } from './band'
 import {
   HOUR,
   LIMIT_LABEL,
-  LIMIT_NAME,
   MINUTE,
   PACE_COLOR,
   WARN_BEFORE_MS,
@@ -15,16 +15,15 @@ import {
   cacheLeftMs,
   contextColor,
   currentLimit,
-  duration,
   expectedPercent,
   hitRatio,
   pace,
   parseResetsAt,
   readingFromTranscript,
+  shortId,
 } from './model'
 
 const TICK_MS = 15_000
-const BAR_WIDTH = 24
 const TAIL_BYTES = 262_144
 
 const cache = atom({ plugin: 'dashband', key: 'cache' } as const, null)
@@ -161,7 +160,8 @@ const warnBeforeExpiry = async ($: EngineInterface, t: number) => {
     warned.add(reading.at)
     const tokens = (await read($, usage))?.contextTokens
     const rewrite = tokens ? `; the next request rewrites about ${Math.round(tokens / 1000)}k tokens` : ''
-    $.ui.toast(`Prompt cache expires in ${Math.ceil(left / MINUTE)} min${rewrite}`, { timeoutMs: 60_000 })
+    const session = shortId(await $.session.id())
+    $.ui.toast(`Session ${session}: prompt cache expires in ${Math.ceil(left / MINUTE)} min${rewrite}`, { timeoutMs: 60_000 })
     await trace($, `toast left=${Math.round(left / 1000)}s`)
   }
 }
@@ -340,87 +340,59 @@ export const register: Register = on => {
     )
   })
 
-  // Band above the prompt: bars and details. The desktop app draws it in one chat at a time.
+  // Band above the prompt: one row each for cache, context and the plan limits, details in a
+  // tooltip. Remote surfaces draw it as a small SVG; the terminal as text. The desktop app draws it
+  // in one chat at a time.
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
-    const { Box, Text } = $.ui.resolve(e)
     await countRender($, 'AbovePrompt', e.surface)
-    const t = await read($, now)
-    const reading = await read($, cache)
-    const isWorking = await read($, working)
     const u = await read($, usage)
+    const rows = bandRows({
+      now: await read($, now),
+      cache: await read($, cache),
+      working: await read($, working),
+      contextPercent: u?.contextPercent ?? null,
+      contextTokens: u?.contextTokens ?? null,
+      limits: u?.limits ?? [],
+      sessionId: shortId(await $.session.id()),
+    })
 
-    const cells = (used: number, color: string, expected?: number) => {
-      const { filled, marker } = bar(BAR_WIDTH, used, expected)
-      const fill = color === 'gray' ? 'green' : color
-      return Array.from({ length: BAR_WIDTH }, (_, i) =>
-        i === marker ? <Text>│</Text> : i < filled ? <Text color={fill}>■</Text> : <Text dimColor>■</Text>,
+    if (e.surface !== 'terminal') {
+      const { Svg } = $.ui.resolve(e)
+      return (
+        <Svg
+          source={bandSvg(rows)}
+          alt={bandAlt(rows)}
+          width={SVG_WIDTH}
+          height={svgHeight(rows.length)}
+          isInteractive
+        />
       )
     }
-    // Fixed columns: the desktop app draws proportional text, so padding with spaces does not align.
-    const label = (text: string, color?: string) => (
-      <Box width={15}>{color ? <Text color={color}>{text}</Text> : <Text dimColor>{text}</Text>}</Box>
-    )
-    const value = (text: string, color: string) => (
-      <Box width={10}>
-        <Text color={color}>{text}</Text>
+
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="column">
+        {rows.map(row => {
+          const { filled, marker } = bar(BAR_CELLS, row.fill, row.marker)
+          const fill = barColor(row.color)
+          return (
+            <Box>
+              <Box width={8}>
+                {row.label.startsWith('●') ? <Text color={row.color}>{row.label}</Text> : <Text dimColor>{row.label}</Text>}
+              </Box>
+              <Box width={9}>
+                <Text color={row.color}>{row.value}</Text>
+              </Box>
+              {Array.from({ length: BAR_CELLS }, (_, i) =>
+                i === marker ? <Text>│</Text> : i < filled ? <Text color={fill}>■</Text> : <Text dimColor>■</Text>,
+              )}
+              <Text dimColor> {row.detail}{row.id ? `${row.detail ? ' · ' : ''}ID ` : ''}</Text>
+              {row.id ? <Text color={ID_COLOR}>{row.id}</Text> : null}
+            </Box>
+          )
+        })}
       </Box>
     )
-
-    const rows = []
-    if (reading === null) {
-      rows.push(<Text dimColor>● prompt cache: waiting for the next response</Text>)
-    } else {
-      const left = isWorking ? reading.ttlMs : cacheLeftMs(reading, t)
-      const color = isWorking ? 'green' : cacheColor(left)
-      const status = isWorking ? 'hot' : left > 0 ? `${Math.ceil(left / MINUTE)}m` : 'cold'
-      rows.push(
-        <Box>
-          {label('● prompt cache', color)}
-          {value(status, color)}
-          {cells((left / reading.ttlMs) * 100, color)}
-          <Text dimColor> {Math.round(reading.hit * 100)}% hit · {reading.ttlMs >= HOUR ? '1h' : '5m'} cache</Text>
-        </Box>,
-      )
-    }
-    if (u?.contextPercent != null) {
-      const color = contextColor(u.contextPercent)
-      rows.push(
-        <Box>
-          {label('  context')}
-          {value(`${u.contextPercent}%`, color)}
-          {cells(u.contextPercent, color)}
-          {u.contextTokens ? <Text dimColor> {Math.round(u.contextTokens / 1000)}k tokens</Text> : null}
-        </Box>,
-      )
-    }
-    for (const limit of (u?.limits ?? []).map(l => currentLimit(l, t))) {
-      const name = LIMIT_NAME[limit.kind]
-      const windowMs = WINDOW_MS[limit.kind]
-      if (!name || !windowMs) continue
-      if (limit.resetsAt === null) {
-        rows.push(
-          <Box>
-            {label(`  ${name}`)}
-            {value(`${Math.round(limit.used)}%`, 'gray')}
-            {cells(limit.used, 'gray')}
-            <Text dimColor> starts with the next request</Text>
-          </Box>,
-        )
-        continue
-      }
-      const expected = expectedPercent(windowMs, limit.resetsAt, t)
-      const color = PACE_COLOR[pace(limit.used, expected)]
-      rows.push(
-        <Box>
-          {label(`  ${name}`)}
-          {value(`${Math.round(limit.used)}%/${Math.round(expected)}%`, color)}
-          {cells(limit.used, color, expected)}
-          <Text dimColor> resets in {duration(limit.resetsAt - t)}</Text>
-        </Box>,
-      )
-    }
-
-    return <Box flexDirection="column">{rows}</Box>
   })
 }

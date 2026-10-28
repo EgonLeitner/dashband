@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The band above the prompt is compact: short labels and a tooltip on each row with the details.
+  The Desktop app draws it as a small SVG, the terminal as narrower text.
+- Plan limits show used and expected usage with a percent sign, as `23/53%`.
+
+### Added
+
+- The first eight characters of the session id in the band and in the prompt cache notice
+
+### Fixed
+
+- An exhausted plan limit draws red, even when the expected usage is close to 100%
+
 ## [0.1.1] - 2026-10-11
 
 ### Added
