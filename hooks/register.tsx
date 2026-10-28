@@ -15,6 +15,9 @@ import {
   idSvgHeight,
   idSvgWidth,
   isSize,
+  keysSvg,
+  keysSvgHeight,
+  keysSvgWidth,
   svgHeight,
   svgWidth,
 } from './band'
@@ -36,6 +39,8 @@ import {
   expectedPercent,
   hitRatio,
   isExpectedBy,
+  keystrokesOf,
+  localDay,
   pace,
   parseResetsAt,
   readingFromTranscript,
@@ -43,6 +48,8 @@ import {
 } from './model'
 
 const TICK_MS = 15_000
+// Keystrokes reach the band once a minute: a new count redraws its SVG, which flickers.
+const KEYS_TICK_MS = 60_000
 const TAIL_BYTES = 262_144
 
 const cache = atom({ plugin: 'dashband', key: 'cache' } as const, null)
@@ -52,6 +59,9 @@ const now = atom({ plugin: 'dashband', key: 'now' } as const, 0)
 const settingsOpen = atom({ plugin: 'dashband', key: 'settingsOpen' } as const, false)
 const size = atom({ plugin: 'dashband', key: 'size' } as const, DEFAULT_SIZE)
 const expectedBy = atom({ plugin: 'dashband', key: 'expectedBy' } as const, 'now' as ExpectedBy)
+const keystrokesOn = atom({ plugin: 'dashband', key: 'keystrokesOn' } as const, false)
+const keysChat = atom({ plugin: 'dashband', key: 'keysChat' } as const, 0)
+const keysToday = atom({ plugin: 'dashband', key: 'keysToday' } as const, 0)
 
 // The settings area: a frame and a shade darker than the band, on light and dark alike.
 const SETTINGS_BORDER = '#8a8a8a'
@@ -59,7 +69,7 @@ const SETTINGS_BACKGROUND = 'rgba(0, 0, 0, 0.06)'
 
 // Settings the person picks in the band, shared by every session through the store.
 const SETTINGS_KEY = 'settings'
-type StoredSettings = { size?: string; expectedBy?: string }
+type StoredSettings = { size?: string; expectedBy?: string; keystrokes?: boolean }
 
 const pullSettings = async ($: EngineInterface) => {
   const stored = (await $.store.get(SETTINGS_KEY)) as StoredSettings | undefined
@@ -67,11 +77,36 @@ const pullSettings = async ($: EngineInterface) => {
   if ((await read($, size)) !== picked) await update($, size, () => picked)
   const by = isExpectedBy(stored?.expectedBy) ? stored.expectedBy : 'now'
   if ((await read($, expectedBy)) !== by) await update($, expectedBy, () => by)
+  const isOn = stored?.keystrokes === true
+  counting = isOn
+  if ((await read($, keystrokesOn)) !== isOn) await update($, keystrokesOn, () => isOn)
 }
 
 const storeSetting = async ($: EngineInterface, setting: StoredSettings) => {
   const stored = ((await $.store.get(SETTINGS_KEY)) as StoredSettings | undefined) ?? {}
   await $.store.set(SETTINGS_KEY, { ...stored, ...setting })
+}
+
+// Keystrokes, counted only while the person has turned it on. Counted in memory on every edit and
+// written once a minute and on submit, so a key costs no store write and no redraw. Only numbers
+// are kept, never text. Today's count is shared by every session through the store.
+const KEYSTROKES_KEY = 'keystrokes'
+type StoredKeystrokes = { day: string; count: number }
+let counting = false
+let pendingKeys = 0
+
+const flushKeystrokes = async ($: EngineInterface) => {
+  const day = localDay(await $.clock.now())
+  const stored = (await $.store.get(KEYSTROKES_KEY)) as StoredKeystrokes | undefined
+  let today = stored?.day === day ? stored.count : 0
+  if (pendingKeys > 0) {
+    const added = pendingKeys
+    pendingKeys = 0
+    today += added
+    await $.store.set(KEYSTROKES_KEY, { day, count: today })
+    await update($, keysChat, n => n + added)
+  }
+  if ((await read($, keysToday)) !== today) await update($, keysToday, () => today)
 }
 
 // Optional trace for troubleshooting: on while this directory exists
@@ -241,6 +276,33 @@ const pushStatus = async ($: EngineInterface) => {
   }
 }
 
+// The band's rows as they would draw at time t.
+const rowsAt = async ($: EngineInterface, t: number) => {
+  const u = await read($, usage)
+  return bandRows({
+    now: t,
+    cache: await read($, cache),
+    working: await read($, working),
+    contextPercent: u?.contextPercent ?? null,
+    contextTokens: u?.contextTokens ?? null,
+    limits: u?.limits ?? [],
+    sessionId: shortId(await $.session.id()),
+    expectedBy: await read($, expectedBy),
+    keystrokes: (await read($, keystrokesOn)) ? { chat: await read($, keysChat), today: await read($, keysToday) } : null,
+  })
+}
+
+// The clock moves on every tick, but setting it redraws the band and the footer, and the Desktop
+// app flickers on each redraw. Only set it when what the band shows changes; the band holds
+// every value the footer shows. Other changes redraw through their own values.
+let shownRows = ''
+const advanceClock = async ($: EngineInterface, t: number) => {
+  const rows = JSON.stringify(await rowsAt($, t))
+  if (rows === shownRows) return
+  shownRows = rows
+  await update($, now, () => t)
+}
+
 const countRender = async ($: EngineInterface, site: string, surface: string) => {
   renders[site] = (renders[site] ?? 0) + 1
   const n = renders[site]
@@ -265,14 +327,16 @@ export const register: Register = on => {
     await update($, now, () => t0)
     $.clock.every(TICK_MS, async () => {
       const t = await $.clock.now()
-      await update($, now, () => t)
+      await advanceClock($, t)
       await lookUpTtl($)
       await warnBeforeExpiry($, t)
       await pullSharedLimits($)
       await pullSettings($)
       await pushStatus($)
     })
+    $.clock.every(KEYS_TICK_MS, () => flushKeystrokes($))
     await pullSettings($)
+    await flushKeystrokes($)
     await refreshUsage($)
     if ((await read($, cache)) === null) {
       const reading = await transcriptReading($)
@@ -291,6 +355,16 @@ export const register: Register = on => {
 
   on('session.detach', async ($, e, next) => {
     await trace($, `detach client=${e.clientId}`)
+    return next(e)
+  })
+
+  on('prompt.edit', async ($, e, next) => {
+    if (counting) pendingKeys += keystrokesOf(e)
+    return next(e)
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    if (counting) await flushKeystrokes($)
     return next(e)
   })
 
@@ -392,24 +466,16 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
     await countRender($, 'AbovePrompt', e.surface)
-    const u = await read($, usage)
-    const rows = bandRows({
-      now: await read($, now),
-      cache: await read($, cache),
-      working: await read($, working),
-      contextPercent: u?.contextPercent ?? null,
-      contextTokens: u?.contextTokens ?? null,
-      limits: u?.limits ?? [],
-      sessionId: shortId(await $.session.id()),
-      expectedBy: await read($, expectedBy),
-    })
+    const rows = await rowsAt($, await read($, now))
 
     if (e.surface !== 'terminal') {
       const { Box, Button, Svg, Text } = $.ui.resolve(e)
       const picked = await read($, size)
       const open = await read($, settingsOpen)
       const shownBy = await read($, expectedBy)
+      const keysShown = await read($, keystrokesOn)
       const sessionId = rows.find(r => r.id)?.id
+      const keys = (await read($, keystrokesOn)) ? { chat: await read($, keysChat), today: await read($, keysToday) } : null
       // The presses are handled by the ui.press hook below, which has the engine at hand.
       const press = () => {}
       return (
@@ -430,9 +496,18 @@ export const register: Register = on => {
               {sessionId ? (
                 <Svg
                   source={idSvg(sessionId, picked)}
-                  alt={`ID ${sessionId}`}
+                  alt={`ID: ${sessionId}`}
                   width={idSvgWidth(picked)}
                   height={idSvgHeight(picked)}
+                />
+              ) : null}
+              {keys ? (
+                <Svg
+                  source={keysSvg(keys, picked)}
+                  alt={`Keystrokes ${keys.chat} in this chat, ${keys.today} today`}
+                  width={keysSvgWidth(keys, picked)}
+                  height={keysSvgHeight(picked)}
+                  isInteractive
                 />
               ) : null}
               <Box marginTop={1}>
@@ -465,6 +540,17 @@ export const register: Register = on => {
                   />
                 </Box>
               ))}
+              <Text dimColor>  Keystrokes: </Text>
+              {([true, false] as const).map(isOn => (
+                <Box marginRight={1}>
+                  <Button
+                    key={`keystrokes-${isOn ? 'on' : 'off'}`}
+                    label={isOn ? 'On' : 'Off'}
+                    variant={isOn === keysShown ? 'primary' : 'secondary'}
+                    onPress={press}
+                  />
+                </Box>
+              ))}
             </Box>
           ) : null}
         </Box>
@@ -488,8 +574,9 @@ export const register: Register = on => {
               {Array.from({ length: BAR_CELLS }, (_, i) =>
                 i === marker ? <Text>│</Text> : i < filled ? <Text color={fill}>■</Text> : <Text dimColor>■</Text>,
               )}
-              <Text dimColor> {row.detail}{row.id ? `${row.detail ? ' · ' : ''}ID ` : ''}</Text>
+              <Text dimColor> {row.detail}{row.id ? `${row.detail ? ' · ' : ''}ID: ` : ''}</Text>
               {row.id ? <Text color={ID_COLOR}>{row.id}</Text> : null}
+              {row.keys ? <Text dimColor> · Keys: {row.keys}</Text> : null}
             </Box>
           )
         })}
@@ -512,6 +599,14 @@ export const register: Register = on => {
         await storeSetting($, { expectedBy: by })
         await update($, expectedBy, () => by)
       }
+    } else if (e.element.startsWith('keystrokes-')) {
+      const isOn = e.element === 'keystrokes-on'
+      // Keys not yet written when counting is turned off are dropped.
+      if (!isOn) pendingKeys = 0
+      counting = isOn
+      await storeSetting($, { keystrokes: isOn })
+      await update($, keystrokesOn, () => isOn)
+      if (isOn) await flushKeystrokes($)
     }
     return next(e)
   })

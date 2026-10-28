@@ -13,6 +13,7 @@ import {
   currentLimit,
   duration,
   expectedAt,
+  groupDigits,
   expectedPercent,
   pace,
 } from './model'
@@ -36,6 +37,8 @@ export type BandRow = {
   detail: string
   // The session id, drawn right-aligned in its own color.
   id?: string
+  // Keystrokes in this chat and today, on the row with the id, where the terminal shows them.
+  keys?: string
   tip: string
 }
 
@@ -48,13 +51,18 @@ export type BandInput = {
   limits: LimitReading[]
   sessionId: string
   expectedBy: ExpectedBy
+  // Keystrokes in this chat and today; null while counting is off.
+  keystrokes?: Keystrokes | null
 }
+
+export type Keystrokes = { chat: number; today: number }
 
 const kTokens = (tokens: number) => `${Math.round(tokens / 1000)}k`
 
 export const bandRows = (input: BandInput): BandRow[] => {
   const { now: t, cache: reading, working: isWorking } = input
   const rows: BandRow[] = []
+  const keys = input.keystrokes ? `${groupDigits(input.keystrokes.chat)}/${groupDigits(input.keystrokes.today)}` : undefined
 
   if (reading === null) {
     rows.push({
@@ -64,6 +72,7 @@ export const bandRows = (input: BandInput): BandRow[] => {
       fill: 0,
       detail: '',
       id: input.sessionId,
+      keys,
       tip: `Prompt cache: waiting for the next response · session ${input.sessionId}`,
     })
   } else {
@@ -78,6 +87,7 @@ export const bandRows = (input: BandInput): BandRow[] => {
       fill: (left / reading.ttlMs) * 100,
       detail: `${hit} · ${ttl}`,
       id: input.sessionId,
+      keys,
       tip: `Prompt cache: ${hit} of the last input read from the cache, ${ttl} lifetime · session ${input.sessionId}`,
     })
   }
@@ -185,7 +195,7 @@ export const bandSvg = (rows: BandRow[], size: Size = DEFAULT_SIZE): string => {
       ...cells,
       `<text x="${DETAIL_X}" y="${baseline}" fill="${hex('gray')}">${escape(row.detail)}</text>`,
       row.id
-        ? `<text x="${LAYOUT_WIDTH}" y="${baseline}" text-anchor="end" fill="${hex('gray')}">ID <tspan fill="${ID_COLOR}">${escape(row.id)}</tspan></text>`
+        ? `<text x="${LAYOUT_WIDTH}" y="${baseline}" text-anchor="end" fill="${hex('gray')}">ID: <tspan fill="${ID_COLOR}">${escape(row.id)}</tspan></text>`
         : '',
       '</g>',
     ].join('')
@@ -200,7 +210,8 @@ export const bandSvg = (rows: BandRow[], size: Size = DEFAULT_SIZE): string => {
 }
 
 // What the band says, for a surface that cannot draw the SVG.
-export const bandAlt = (rows: BandRow[]) => rows.map(r => `${r.label} ${r.value} ${r.detail}${r.id ? ` · ID ${r.id}` : ''}`.trim()).join(' · ')
+export const bandAlt = (rows: BandRow[]) =>
+  rows.map(r => `${r.label} ${r.value} ${r.detail}${r.id ? ` · ID: ${r.id}` : ''}${r.keys ? ` · Keys: ${r.keys}` : ''}`.trim()).join(' · ')
 
 // The session id on its own, drawn in the band's font and size so it can sit apart from the band.
 const ID_LAYOUT_WIDTH = 80
@@ -213,6 +224,31 @@ export const idSvg = (id: string, size: Size = DEFAULT_SIZE): string =>
     ` viewBox="0 0 ${ID_LAYOUT_WIDTH} ${ROW_PX}"`,
     ` font-family="-apple-system, system-ui, sans-serif" font-size="${FONT_PX}">`,
     `<text x="${ID_LAYOUT_WIDTH}" y="${FONT_PX}" text-anchor="end" fill="${hex('gray')}">`,
-    `ID <tspan fill="${ID_COLOR}">${escape(id)}</tspan></text>`,
+    `ID: <tspan fill="${ID_COLOR}">${escape(id)}</tspan></text>`,
     '</svg>',
   ].join('')
+
+// Keystrokes on their own, under the session id in the desktop app: this chat and today, the full
+// numbers and what is counted in the tooltip.
+export const keysTip = (k: Keystrokes) =>
+  `Keystrokes: ${groupDigits(k.chat)} in this chat, ${groupDigits(k.today)} today across all chats. ` +
+  'Counts typed characters and deletions, not pasted text and not the first message of a new chat. No text is stored.'
+
+const keysText = (k: Keystrokes) => `Keys: ${groupDigits(k.chat)} · ${groupDigits(k.today)}`
+// Wide enough for the text at about 6.5 pixels a character, never narrower than the id.
+const keysLayoutWidth = (k: Keystrokes) => Math.max(ID_LAYOUT_WIDTH, Math.ceil(keysText(k).length * 6.5))
+export const keysSvgWidth = (k: Keystrokes, size: Size) => Math.round(keysLayoutWidth(k) * SIZES[size])
+export const keysSvgHeight = idSvgHeight
+
+export const keysSvg = (k: Keystrokes, size: Size = DEFAULT_SIZE): string => {
+  const width = keysLayoutWidth(k)
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${keysSvgWidth(k, size)}" height="${keysSvgHeight(size)}"`,
+    ` viewBox="0 0 ${width} ${ROW_PX}"`,
+    ` font-family="-apple-system, system-ui, sans-serif" font-size="${FONT_PX}">`,
+    `<g><title>${escape(keysTip(k))}</title>`,
+    `<rect x="0" y="0" width="${width}" height="${ROW_PX}" fill="transparent"/>`,
+    `<text x="${width}" y="${FONT_PX}" text-anchor="end" fill="${hex('gray')}">${escape(keysText(k))}</text>`,
+    '</g></svg>',
+  ].join('')
+}

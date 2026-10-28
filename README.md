@@ -20,7 +20,7 @@ As text, the footer:
 and the band in the terminal:
 
 ```
-● cache 42m      ■■■■■■■■■■■□□□□□ 100% · 1h · ID 46b74c3d
+● cache 42m      ■■■■■■■■■■■□□□□□ 100% · 1h · ID: 46b74c3d
 ctx     31%      ■■■■■□□□□□□□□□□□ 310k
 5h      12/40%   ■■□□□□│□□□□□□□□□ ↻ 3h 0m
 week    70/96%   ■■■■■■■■■■■□□□□│ ↻ 7h 0m
@@ -46,8 +46,9 @@ until they reset.
 | `ctx 31%` | How full the context window is: green, orange from 75 %, red from 90 % |
 | `5h 12%/40%` | Five-hour limit: used, and where usage would be by now if spread evenly over the window |
 | `↻ 3h 0m` (band) | Time until the limit resets |
-| `ID 46b74c3d` (band) | The first eight characters of the session id, to tell chats apart |
+| `ID: 46b74c3d` (band) | The first eight characters of the session id, to tell chats apart |
 | `WL 70%/96%` | Weekly limit, the same way |
+| `Keys: 1,234 · 8,412` (band) | Keystrokes in this chat and today across all chats; only when turned on in the settings |
 
 The limits are colored by pace, used minus expected:
 
@@ -76,6 +77,7 @@ every chat.
 |---|---|
 | Size | `S`, `M`, `L`: the size of the band |
 | Limits expected by | `Now`: where usage would be by now. `Midnight`: where it may be at the end of the day (local time), or at the reset if that comes first |
+| Keystrokes | `Off` (default) or `On`: count your keystrokes in the prompt box, see below |
 
 The cache lifetime, five minutes or one hour, is read from the session transcript. The plan
 limits appear only on a Claude subscription.
@@ -129,6 +131,23 @@ To load it in every session, including the Desktop app, add the folder to `env` 
 }
 ```
 
+## Keystrokes
+
+Off by default. Turned on, dashband counts what you type into Claude's prompt box and shows it
+under the session id: this chat, and today across all chats (the day starts over at midnight,
+local time). The terminal shows it after the session id.
+
+To count, dashband watches each edit of the prompt box. **It keeps only numbers, never the text,
+and sends nothing anywhere.** It sees the prompt box only, no other app. The code is in
+[`hooks/register.tsx`](hooks/register.tsx) and [`hooks/model.ts`](hooks/model.ts).
+
+- Each typed character counts, a deletion counts once, cursor moves do not count.
+- Pasted text does not count. Claude Code reports a paste without the key that made it, as it
+  does a quick burst of keys; more than 16 characters at once count as a paste.
+- In the Desktop app the first message of a new chat does not count: the app starts Claude Code
+  for a chat only once that message is sent.
+- Counts reach the band once a minute and when you send a prompt.
+
 ## Limitations
 
 - The countdown estimates expiry from the time of the last response. It cannot see the cache on
@@ -137,7 +156,8 @@ To load it in every session, including the Desktop app, add the folder to `env` 
   starts Claude Code for a chat only then. A chat with an existing conversation shows it shortly
   after you open it, also after an app start; one that waits for your answer to a question
   shows it once you have answered.
-- Settings are available in the Desktop app only; the terminal draws the band as text.
+- Settings are available in the Desktop app only; the terminal draws the band as text and
+  follows what was set there.
 
 Older versions of the Desktop app drew the band in only one chat at a time
 ([anthropics/claude-code#99265](https://github.com/anthropics/claude-code/issues/99265), fixed

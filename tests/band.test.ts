@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { bandAlt, bandRows, bandSvg, isSize, svgWidth } from '../hooks/band'
+import { bandAlt, bandRows, bandSvg, isSize, keysSvg, keysTip, svgWidth } from '../hooks/band'
 import { HOUR, MINUTE } from '../hooks/model'
 
 const now = Date.parse('2026-10-28T06:00:00.000Z')
@@ -44,3 +44,18 @@ test('the size setting scales the SVG and accepts only known sizes', async () =>
   expect(isSize('M')).toBe(true)
   expect(isSize('XL')).toBe(false)
 })
+
+test('keystrokes stay out of the band while counting is off', async () => {
+  expect(bandRows(input)[0]?.keys).toBeUndefined()
+  expect(bandAlt(bandRows(input))).not.toContain('⌨')
+})
+
+test('keystrokes sit with the session id: this chat and today', async () => {
+  const rows = bandRows({ ...input, keystrokes: { chat: 1234, today: 8412 } })
+  expect(rows[0]?.keys).toBe('1,234/8,412')
+  expect(bandAlt(rows)).toContain('ID: a1b2c3d4 · Keys: 1,234/8,412')
+  const svg = keysSvg({ chat: 1234, today: 8412 })
+  expect(svg).toContain('Keys: 1,234 · 8,412')
+  expect(keysTip({ chat: 1234, today: 8412 })).toContain('No text is stored')
+})
+
