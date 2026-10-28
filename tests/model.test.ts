@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { HOUR, MINUTE, bar, cacheColor, currentLimit, duration, expectedPercent, pace, parseResetsAt, readingFromTranscript } from '../hooks/model'
+import { HOUR, MINUTE, bar, expectedAt, nextMidnight, cacheColor, currentLimit, duration, expectedPercent, pace, parseResetsAt, readingFromTranscript } from '../hooks/model'
 
 const WEEK = 7 * 24 * HOUR
 
@@ -85,4 +85,13 @@ test('a limit read before its window reset no longer counts', async () => {
   })
   const fresh = { kind: 'seven_day', used: 5, resetsAt: reset + WEEK }
   expect(currentLimit(fresh, now)).toBe(fresh)
+})
+
+test('expected usage can look ahead to midnight, but not past the reset', async () => {
+  const now = new Date(2026, 9, 28, 10, 0).getTime()
+  const midnight = new Date(2026, 9, 29, 0, 0).getTime()
+  expect(nextMidnight(now)).toBe(midnight)
+  expect(expectedAt('now', now + WEEK, now)).toBe(now)
+  expect(expectedAt('midnight', now + WEEK, now)).toBe(midnight)
+  expect(expectedAt('midnight', now + 2 * HOUR, now)).toBe(now + 2 * HOUR)
 })

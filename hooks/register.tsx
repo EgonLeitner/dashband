@@ -19,6 +19,7 @@ import {
   svgWidth,
 } from './band'
 import type { Size } from './band'
+import type { ExpectedBy } from './model'
 import {
   HOUR,
   LIMIT_LABEL,
@@ -31,8 +32,10 @@ import {
   cacheLeftMs,
   contextColor,
   currentLimit,
+  expectedAt,
   expectedPercent,
   hitRatio,
+  isExpectedBy,
   pace,
   parseResetsAt,
   readingFromTranscript,
@@ -48,6 +51,7 @@ const working = atom({ plugin: 'dashband', key: 'working' } as const, false)
 const now = atom({ plugin: 'dashband', key: 'now' } as const, 0)
 const settingsOpen = atom({ plugin: 'dashband', key: 'settingsOpen' } as const, false)
 const size = atom({ plugin: 'dashband', key: 'size' } as const, DEFAULT_SIZE)
+const expectedBy = atom({ plugin: 'dashband', key: 'expectedBy' } as const, 'now' as ExpectedBy)
 
 // The settings area: a frame and a shade darker than the band, on light and dark alike.
 const SETTINGS_BORDER = '#8a8a8a'
@@ -55,12 +59,19 @@ const SETTINGS_BACKGROUND = 'rgba(0, 0, 0, 0.06)'
 
 // Settings the person picks in the band, shared by every session through the store.
 const SETTINGS_KEY = 'settings'
-type StoredSettings = { size?: string }
+type StoredSettings = { size?: string; expectedBy?: string }
 
 const pullSettings = async ($: EngineInterface) => {
   const stored = (await $.store.get(SETTINGS_KEY)) as StoredSettings | undefined
   const picked = isSize(stored?.size) ? stored.size : DEFAULT_SIZE
   if ((await read($, size)) !== picked) await update($, size, () => picked)
+  const by = isExpectedBy(stored?.expectedBy) ? stored.expectedBy : 'now'
+  if ((await read($, expectedBy)) !== by) await update($, expectedBy, () => by)
+}
+
+const storeSetting = async ($: EngineInterface, setting: StoredSettings) => {
+  const stored = ((await $.store.get(SETTINGS_KEY)) as StoredSettings | undefined) ?? {}
+  await $.store.set(SETTINGS_KEY, { ...stored, ...setting })
 }
 
 // Optional trace for troubleshooting: on while this directory exists
@@ -357,7 +368,8 @@ export const register: Register = on => {
         parts.push(<Text dimColor>{name} {Math.round(limit.used)}%</Text>)
         continue
       }
-      const expected = expectedPercent(windowMs, limit.resetsAt, t)
+      const by = await read($, expectedBy)
+      const expected = expectedPercent(windowMs, limit.resetsAt, expectedAt(by, limit.resetsAt, t))
       parts.push(
         <Text color={PACE_COLOR[pace(limit.used, expected)]}>
           {name} {Math.round(limit.used)}%/{Math.round(expected)}%
@@ -389,12 +401,14 @@ export const register: Register = on => {
       contextTokens: u?.contextTokens ?? null,
       limits: u?.limits ?? [],
       sessionId: shortId(await $.session.id()),
+      expectedBy: await read($, expectedBy),
     })
 
     if (e.surface !== 'terminal') {
       const { Box, Button, Svg, Text } = $.ui.resolve(e)
       const picked = await read($, size)
       const open = await read($, settingsOpen)
+      const shownBy = await read($, expectedBy)
       const sessionId = rows.find(r => r.id)?.id
       // The presses are handled by the ui.press hook below, which has the engine at hand.
       const press = () => {}
@@ -434,10 +448,21 @@ export const register: Register = on => {
               borderColor={SETTINGS_BORDER}
               backgroundColor={SETTINGS_BACKGROUND}
             >
-              <Text dimColor>Size </Text>
+              <Text dimColor>Size: </Text>
               {(Object.keys(SIZES) as Size[]).map(s => (
                 <Box marginRight={1}>
                   <Button key={`size-${s}`} label={s} variant={s === picked ? 'primary' : 'secondary'} onPress={press} />
+                </Box>
+              ))}
+              <Text dimColor>  Limits expected by: </Text>
+              {(['now', 'midnight'] as const).map(by => (
+                <Box marginRight={1}>
+                  <Button
+                    key={`expected-${by}`}
+                    label={by === 'now' ? 'Now' : 'Midnight'}
+                    variant={by === shownBy ? 'primary' : 'secondary'}
+                    onPress={press}
+                  />
                 </Box>
               ))}
             </Box>
@@ -478,9 +503,14 @@ export const register: Register = on => {
     } else if (e.element.startsWith('size-')) {
       const picked = e.element.slice('size-'.length)
       if (isSize(picked)) {
-        const stored = ((await $.store.get(SETTINGS_KEY)) as StoredSettings | undefined) ?? {}
-        await $.store.set(SETTINGS_KEY, { ...stored, size: picked })
+        await storeSetting($, { size: picked })
         await update($, size, () => picked)
+      }
+    } else if (e.element.startsWith('expected-')) {
+      const by = e.element.slice('expected-'.length)
+      if (isExpectedBy(by)) {
+        await storeSetting($, { expectedBy: by })
+        await update($, expectedBy, () => by)
       }
     }
     return next(e)

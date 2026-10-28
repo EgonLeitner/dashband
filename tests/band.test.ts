@@ -12,6 +12,7 @@ const input = {
   contextTokens: 434_000,
   limits: [{ kind: 'five_hour', used: 100, resetsAt: now + 6 * MINUTE }],
   sessionId: 'a1b2c3d4',
+  expectedBy: 'now' as const,
 }
 
 test('the band has a row for cache, context and each limit', async () => {

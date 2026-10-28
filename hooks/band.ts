@@ -1,4 +1,5 @@
 import type { CacheReading, LimitReading } from '../types'
+import type { ExpectedBy } from './model'
 import {
   HOUR,
   LIMIT_NAME,
@@ -11,6 +12,7 @@ import {
   contextColor,
   currentLimit,
   duration,
+  expectedAt,
   expectedPercent,
   pace,
 } from './model'
@@ -45,6 +47,7 @@ export type BandInput = {
   contextTokens: number | null
   limits: LimitReading[]
   sessionId: string
+  expectedBy: ExpectedBy
 }
 
 const kTokens = (tokens: number) => `${Math.round(tokens / 1000)}k`
@@ -108,7 +111,7 @@ export const bandRows = (input: BandInput): BandRow[] => {
       })
       continue
     }
-    const expected = expectedPercent(windowMs, limit.resetsAt, t)
+    const expected = expectedPercent(windowMs, limit.resetsAt, expectedAt(input.expectedBy, limit.resetsAt, t))
     const resets = duration(limit.resetsAt - t)
     rows.push({
       label,
@@ -117,7 +120,7 @@ export const bandRows = (input: BandInput): BandRow[] => {
       fill: limit.used,
       marker: expected,
       detail: `↻ ${resets}`,
-      tip: `${name}: ${used}% used, ${Math.round(expected)}% expected by now; resets in ${resets}`,
+      tip: `${name}: ${used}% used, ${Math.round(expected)}% expected by ${input.expectedBy}; resets in ${resets}`,
     })
   }
   return rows

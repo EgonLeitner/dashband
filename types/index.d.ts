@@ -31,6 +31,7 @@ declare module 'claude-code' {
       now: number
       settingsOpen: boolean
       size: 'S' | 'M' | 'L'
+      expectedBy: 'now' | 'midnight'
     }
   }
 }

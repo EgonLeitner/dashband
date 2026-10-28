@@ -62,6 +62,20 @@ export const expectedPercent = (windowMs: number, resetsAt: number, now: number)
 }
 
 // An exhausted limit is always far over, however close the expected usage is.
+// The moment the expected usage is shown for: now, or the coming midnight (local time). Never past
+// the window's reset, where the expected usage reaches 100%.
+export type ExpectedBy = 'now' | 'midnight'
+export const isExpectedBy = (value: unknown): value is ExpectedBy => value === 'now' || value === 'midnight'
+
+export const nextMidnight = (now: number): number => {
+  const d = new Date(now)
+  d.setHours(24, 0, 0, 0)
+  return d.getTime()
+}
+
+export const expectedAt = (by: ExpectedBy, resetsAt: number, now: number): number =>
+  by === 'midnight' ? Math.min(nextMidnight(now), resetsAt) : now
+
 export const pace = (used: number, expected: number): Pace => {
   if (used >= 100) return 'far-over'
   const ahead = used - expected
