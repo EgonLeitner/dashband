@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { HOUR, MINUTE, bar, expectedAt, nextMidnight, cacheColor, currentLimit, duration, expectedPercent, pace, parseResetsAt, readingFromTranscript } from '../hooks/model'
+import { BURST_MAX_CHARS, HOUR, MINUTE, bar, groupDigits, keystrokesOf, localDay, expectedAt, nextMidnight, cacheColor, currentLimit, duration, expectedPercent, pace, parseResetsAt, readingFromTranscript } from '../hooks/model'
 
 const WEEK = 7 * 24 * HOUR
 
@@ -95,3 +95,26 @@ test('expected usage can look ahead to midnight, but not past the reset', async 
   expect(expectedAt('midnight', now + WEEK, now)).toBe(midnight)
   expect(expectedAt('midnight', now + 2 * HOUR, now)).toBe(now + 2 * HOUR)
 })
+
+test('typed characters count, deletions count once, moves and pastes not at all', async () => {
+  // A key the editor folds a space into still counts both characters.
+  expect(keystrokesOf({ key: { key: 'n' }, start: 8, end: 8, inputText: ' n' })).toBe(2)
+  expect(keystrokesOf({ key: { key: 'backspace' }, start: 3, end: 4, inputText: '' })).toBe(1)
+  expect(keystrokesOf({ key: { key: 'left' }, start: 1, end: 1, inputText: '' })).toBe(0)
+  expect(keystrokesOf({ start: 39, end: 39, inputText: 'x'.repeat(9) })).toBe(9)
+  expect(keystrokesOf({ start: 0, end: 0, inputText: 'x'.repeat(BURST_MAX_CHARS) })).toBe(BURST_MAX_CHARS)
+  expect(keystrokesOf({ start: 87, end: 87, inputText: 'x'.repeat(102) })).toBe(0)
+})
+
+test('the day is the local calendar day', async () => {
+  expect(localDay(new Date(2026, 9, 28, 23, 59).getTime())).toBe('2026-10-28')
+  expect(localDay(new Date(2026, 9, 29, 0, 0).getTime())).toBe('2026-10-29')
+})
+
+test('counts are whole numbers with thousands separators', async () => {
+  expect(groupDigits(0)).toBe('0')
+  expect(groupDigits(847)).toBe('847')
+  expect(groupDigits(1234)).toBe('1,234')
+  expect(groupDigits(1234567)).toBe('1,234,567')
+})
+

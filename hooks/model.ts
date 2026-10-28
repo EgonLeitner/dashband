@@ -164,3 +164,28 @@ export const bar = (width: number, used: number, expected?: number) => {
   const marker = expected === undefined ? -1 : Math.min(width - 1, Math.round((expected / 100) * width))
   return { filled, marker }
 }
+
+// Keystrokes. An edit without a key is a burst of keys the editor folded into one when it is
+// this short, a paste when it is longer; pasting does not count.
+export const BURST_MAX_CHARS = 16
+
+export type PromptEdit = { key?: unknown; start: number; end: number; inputText: string }
+
+// Keys one edit of the prompt box took: each character typed, one for a deletion, none for a
+// cursor move or a paste.
+export const keystrokesOf = (edit: PromptEdit): number => {
+  const typed = edit.inputText.length
+  if (typed === 0) return edit.end > edit.start ? 1 : 0
+  if (edit.key === undefined && typed > BURST_MAX_CHARS) return 0
+  return typed
+}
+
+// The local calendar day of a time, as YYYY-MM-DD; the daily count starts over at midnight.
+export const localDay = (t: number): string => {
+  const d = new Date(t)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// A whole number with thousands separators, as 12,345.
+export const groupDigits = (n: number): string => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')

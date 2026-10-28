@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Keystroke count, off by default: keystrokes in this chat and today across all chats, turned on
+  in the settings. Only numbers are kept, never the text.
+
+### Changed
+
+- The session id in the band reads `ID: a1b2c3d4`.
+- The band redraws only when a value it shows changes, not on every 15-second tick.
+
 ## [0.2.0] - 2026-10-28
 
 ### Changed

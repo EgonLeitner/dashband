@@ -32,6 +32,11 @@ declare module 'claude-code' {
       settingsOpen: boolean
       size: 'S' | 'M' | 'L'
       expectedBy: 'now' | 'midnight'
+      // Keystroke counting, off unless the person turns it on in the settings.
+      keystrokesOn: boolean
+      // Keystrokes in this chat, and today across all chats as last read from the store.
+      keysChat: number
+      keysToday: number
     }
   }
 }
