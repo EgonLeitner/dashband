@@ -29,6 +29,8 @@ declare module 'claude-code' {
       usage: UsageReading | null
       working: boolean
       now: number
+      settingsOpen: boolean
+      size: 'S' | 'M' | 'L'
     }
   }
 }

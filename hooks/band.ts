@@ -151,15 +151,18 @@ const LABEL_X = 0
 const VALUE_X = 50
 const BAR_X = 106
 const DETAIL_X = BAR_X + SVG_BAR_CELLS * (CELL_PX + CELL_GAP_PX) + 6
-const LAYOUT_WIDTH = DETAIL_X + 170
-// The layout above is drawn this many times larger, in CSS pixels.
-const SCALE = 1.2
+const LAYOUT_WIDTH = DETAIL_X + 100
+// Sizes to pick in the settings: how many times larger the layout above is drawn, in CSS pixels.
+export const SIZES = { S: 1, M: 1.2, L: 1.5 } as const
+export type Size = keyof typeof SIZES
+export const DEFAULT_SIZE: Size = 'M'
+export const isSize = (value: unknown): value is Size => typeof value === 'string' && value in SIZES
 
 const layoutHeight = (rows: number) => rows * ROW_PX + 2
-export const SVG_WIDTH = Math.round(LAYOUT_WIDTH * SCALE)
-export const svgHeight = (rows: number) => Math.round(layoutHeight(rows) * SCALE)
+export const svgWidth = (size: Size) => Math.round(LAYOUT_WIDTH * SIZES[size])
+export const svgHeight = (rows: number, size: Size) => Math.round(layoutHeight(rows) * SIZES[size])
 
-export const bandSvg = (rows: BandRow[]): string => {
+export const bandSvg = (rows: BandRow[], size: Size = DEFAULT_SIZE): string => {
   const lines = rows.map((row, i) => {
     const y = i * ROW_PX + 1
     const baseline = y + FONT_PX
@@ -186,7 +189,7 @@ export const bandSvg = (rows: BandRow[]): string => {
     ].join('')
   })
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${SVG_WIDTH}" height="${svgHeight(rows.length)}"`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth(size)}" height="${svgHeight(rows.length, size)}"`,
     ` viewBox="0 0 ${LAYOUT_WIDTH} ${layoutHeight(rows.length)}"`,
     ` font-family="-apple-system, system-ui, sans-serif" font-size="${FONT_PX}">`,
     ...lines,
@@ -196,3 +199,18 @@ export const bandSvg = (rows: BandRow[]): string => {
 
 // What the band says, for a surface that cannot draw the SVG.
 export const bandAlt = (rows: BandRow[]) => rows.map(r => `${r.label} ${r.value} ${r.detail}${r.id ? ` · ID ${r.id}` : ''}`.trim()).join(' · ')
+
+// The session id on its own, drawn in the band's font and size so it can sit apart from the band.
+const ID_LAYOUT_WIDTH = 80
+export const idSvgWidth = (size: Size) => Math.round(ID_LAYOUT_WIDTH * SIZES[size])
+export const idSvgHeight = (size: Size) => Math.round(ROW_PX * SIZES[size])
+
+export const idSvg = (id: string, size: Size = DEFAULT_SIZE): string =>
+  [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${idSvgWidth(size)}" height="${idSvgHeight(size)}"`,
+    ` viewBox="0 0 ${ID_LAYOUT_WIDTH} ${ROW_PX}"`,
+    ` font-family="-apple-system, system-ui, sans-serif" font-size="${FONT_PX}">`,
+    `<text x="${ID_LAYOUT_WIDTH}" y="${FONT_PX}" text-anchor="end" fill="${hex('gray')}">`,
+    `ID <tspan fill="${ID_COLOR}">${escape(id)}</tspan></text>`,
+    '</svg>',
+  ].join('')

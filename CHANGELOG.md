@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - The first eight characters of the session id in the band and in the prompt cache notice
+- Desktop app: a Settings button beside the band opens a framed settings area; the size of the
+  band (S, M, L) applies to every chat
 
 ### Fixed
 

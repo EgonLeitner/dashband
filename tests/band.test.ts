@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { bandAlt, bandRows, bandSvg } from '../hooks/band'
+import { bandAlt, bandRows, bandSvg, isSize, svgWidth } from '../hooks/band'
 import { HOUR, MINUTE } from '../hooks/model'
 
 const now = Date.parse('2026-10-28T06:00:00.000Z')
@@ -35,4 +35,11 @@ test('the SVG carries each row with its tooltip and escapes text', async () => {
   expect(svg.includes('<title>x &amp; y</title>')).toBe(true)
   expect(svg.includes('a&lt;b')).toBe(true)
   expect(bandAlt(bandRows(input)).startsWith('● cache 50m')).toBe(true)
+})
+
+test('the size setting scales the SVG and accepts only known sizes', async () => {
+  expect(svgWidth('L')).toBeGreaterThan(svgWidth('M'))
+  expect(bandSvg([], 'S').includes(`width="${svgWidth('S')}"`)).toBe(true)
+  expect(isSize('M')).toBe(true)
+  expect(isSize('XL')).toBe(false)
 })

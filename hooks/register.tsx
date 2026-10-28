@@ -2,7 +2,23 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage, SessionRateLimit } from 'claude-code'
 
 import type { CacheReading, LimitReading, UsageReading } from '../types'
-import { BAR_CELLS, ID_COLOR, SVG_WIDTH, bandAlt, bandRows, bandSvg, barColor, svgHeight } from './band'
+import {
+  BAR_CELLS,
+  DEFAULT_SIZE,
+  ID_COLOR,
+  SIZES,
+  bandAlt,
+  bandRows,
+  bandSvg,
+  barColor,
+  idSvg,
+  idSvgHeight,
+  idSvgWidth,
+  isSize,
+  svgHeight,
+  svgWidth,
+} from './band'
+import type { Size } from './band'
 import {
   HOUR,
   LIMIT_LABEL,
@@ -30,6 +46,22 @@ const cache = atom({ plugin: 'dashband', key: 'cache' } as const, null)
 const usage = atom({ plugin: 'dashband', key: 'usage' } as const, null)
 const working = atom({ plugin: 'dashband', key: 'working' } as const, false)
 const now = atom({ plugin: 'dashband', key: 'now' } as const, 0)
+const settingsOpen = atom({ plugin: 'dashband', key: 'settingsOpen' } as const, false)
+const size = atom({ plugin: 'dashband', key: 'size' } as const, DEFAULT_SIZE)
+
+// The settings area: a frame and a shade darker than the band, on light and dark alike.
+const SETTINGS_BORDER = '#8a8a8a'
+const SETTINGS_BACKGROUND = 'rgba(0, 0, 0, 0.06)'
+
+// Settings the person picks in the band, shared by every session through the store.
+const SETTINGS_KEY = 'settings'
+type StoredSettings = { size?: string }
+
+const pullSettings = async ($: EngineInterface) => {
+  const stored = (await $.store.get(SETTINGS_KEY)) as StoredSettings | undefined
+  const picked = isSize(stored?.size) ? stored.size : DEFAULT_SIZE
+  if ((await read($, size)) !== picked) await update($, size, () => picked)
+}
 
 // Optional trace for troubleshooting: on while this directory exists
 // (`mkdir /tmp/dashband-trace`). Each session writes its own log there. Checked on every
@@ -226,8 +258,10 @@ export const register: Register = on => {
       await lookUpTtl($)
       await warnBeforeExpiry($, t)
       await pullSharedLimits($)
+      await pullSettings($)
       await pushStatus($)
     })
+    await pullSettings($)
     await refreshUsage($)
     if ((await read($, cache)) === null) {
       const reading = await transcriptReading($)
@@ -358,15 +392,57 @@ export const register: Register = on => {
     })
 
     if (e.surface !== 'terminal') {
-      const { Svg } = $.ui.resolve(e)
+      const { Box, Button, Svg, Text } = $.ui.resolve(e)
+      const picked = await read($, size)
+      const open = await read($, settingsOpen)
+      const sessionId = rows.find(r => r.id)?.id
+      // The presses are handled by the ui.press hook below, which has the engine at hand.
+      const press = () => {}
       return (
-        <Svg
-          source={bandSvg(rows)}
-          alt={bandAlt(rows)}
-          width={SVG_WIDTH}
-          height={svgHeight(rows.length)}
-          isInteractive
-        />
+        <Box flexDirection="column">
+          <Box>
+            <Svg
+              source={bandSvg(
+                rows.map(r => ({ ...r, id: undefined })),
+                picked,
+              )}
+              alt={bandAlt(rows)}
+              width={svgWidth(picked)}
+              height={svgHeight(rows.length, picked)}
+              isInteractive
+            />
+            {/* The session id and the settings button, flush with the right edge of the band's area. */}
+            <Box flexGrow={1} flexDirection="column" alignItems="flex-end" marginLeft={1}>
+              {sessionId ? (
+                <Svg
+                  source={idSvg(sessionId, picked)}
+                  alt={`ID ${sessionId}`}
+                  width={idSvgWidth(picked)}
+                  height={idSvgHeight(picked)}
+                />
+              ) : null}
+              <Box marginTop={1}>
+                <Button key="settings" label={open ? '⚙ Close' : '⚙ Settings'} onPress={press} />
+              </Box>
+            </Box>
+          </Box>
+          {open ? (
+            <Box
+              marginTop={1}
+              paddingX={1}
+              borderStyle="round"
+              borderColor={SETTINGS_BORDER}
+              backgroundColor={SETTINGS_BACKGROUND}
+            >
+              <Text dimColor>Size </Text>
+              {(Object.keys(SIZES) as Size[]).map(s => (
+                <Box marginRight={1}>
+                  <Button key={`size-${s}`} label={s} variant={s === picked ? 'primary' : 'secondary'} onPress={press} />
+                </Box>
+              ))}
+            </Box>
+          ) : null}
+        </Box>
       )
     }
 
@@ -394,5 +470,19 @@ export const register: Register = on => {
         })}
       </Box>
     )
+  })
+
+  on('ui.press', { plugin: 'dashband' }, async ($, e, next) => {
+    if (e.element === 'settings') {
+      await update($, settingsOpen, open => !open)
+    } else if (e.element.startsWith('size-')) {
+      const picked = e.element.slice('size-'.length)
+      if (isSize(picked)) {
+        const stored = ((await $.store.get(SETTINGS_KEY)) as StoredSettings | undefined) ?? {}
+        await $.store.set(SETTINGS_KEY, { ...stored, size: picked })
+        await update($, size, () => picked)
+      }
+    }
+    return next(e)
   })
 }
