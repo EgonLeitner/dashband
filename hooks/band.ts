@@ -16,14 +16,21 @@ import {
   groupDigits,
   expectedPercent,
   pace,
+  LONG_BREAK_MS,
+  POMODORO_MS,
+  SHORT_BREAK_MS,
+  WATER_FROM_HOUR,
+  WATER_TO_HOUR,
+  TIMER_STEP_MS,
 } from './model'
+import type { Pomodoro, PomodoroPhase, Timer, WaterColor } from './model'
 
 export const BAR_CELLS = 16
 
 // Short labels for the band; the tooltip spells them out.
 const ROW_LABEL: Record<string, string> = {
   five_hour: '5h',
-  seven_day: 'week',
+  seven_day: '7d',
 }
 
 // One line of the band: a label, a value, a bar and a short detail, with a tooltip that says it in
@@ -141,6 +148,7 @@ const HEX: Record<string, string> = {
   green: '#4f9d55',
   yellow: '#d4a72c',
   red: '#d9534f',
+  orange: '#e8833a',
   gray: '#8a8a8a',
 }
 // The session id: a mid blue, readable on light and dark.
@@ -165,7 +173,7 @@ const BAR_X = 106
 const DETAIL_X = BAR_X + SVG_BAR_CELLS * (CELL_PX + CELL_GAP_PX) + 6
 const LAYOUT_WIDTH = DETAIL_X + 100
 // Sizes to pick in the settings: how many times larger the layout above is drawn, in CSS pixels.
-export const SIZES = { S: 1, M: 1.2, L: 1.5 } as const
+export const SIZES = { S: 1.1, M: 1.25, L: 1.5 } as const
 export type Size = keyof typeof SIZES
 export const DEFAULT_SIZE: Size = 'M'
 export const isSize = (value: unknown): value is Size => typeof value === 'string' && value in SIZES
@@ -234,9 +242,11 @@ export const keysTip = (k: Keystrokes) =>
   `Keystrokes: ${groupDigits(k.chat)} in this chat, ${groupDigits(k.today)} today across all chats. ` +
   'Counts typed characters and deletions, not pasted text and not the first message of a new chat. No text is stored.'
 
-const keysText = (k: Keystrokes) => `Keys: ${groupDigits(k.chat)} · ${groupDigits(k.today)}`
+// In the desktop app the keyboard icon beside it says what the numbers are.
+const keysText = (k: Keystrokes) => `${groupDigits(k.chat)} · ${groupDigits(k.today)}`
 // Wide enough for the text at about 6.5 pixels a character, never narrower than the id.
-const keysLayoutWidth = (k: Keystrokes) => Math.max(ID_LAYOUT_WIDTH, Math.ceil(keysText(k).length * 6.5))
+// Left-aligned beside its icon.
+const keysLayoutWidth = (k: Keystrokes) => textWidth(keysText(k)) + 1
 export const keysSvgWidth = (k: Keystrokes, size: Size) => Math.round(keysLayoutWidth(k) * SIZES[size])
 export const keysSvgHeight = idSvgHeight
 
@@ -248,7 +258,106 @@ export const keysSvg = (k: Keystrokes, size: Size = DEFAULT_SIZE): string => {
     ` font-family="-apple-system, system-ui, sans-serif" font-size="${FONT_PX}">`,
     `<g><title>${escape(keysTip(k))}</title>`,
     `<rect x="0" y="0" width="${width}" height="${ROW_PX}" fill="transparent"/>`,
-    `<text x="${width}" y="${FONT_PX}" text-anchor="end" fill="${hex('gray')}">${escape(keysText(k))}</text>`,
+    `<text x="0" y="${FONT_PX}" fill="${hex('gray')}">${escape(keysText(k))}</text>`,
     '</g></svg>',
   ].join('')
+}
+
+// Water, beside the keystrokes in the desktop app: the units drunk today in their color between
+// a minus and a plus button, then the day's target.
+export type Water = { drunk: number; target: number; due: number; color: WaterColor }
+
+const hour = (h: number) => `${String(h).padStart(2, '0')}:00`
+export const waterTip = (w: Water) =>
+  `Water: ${w.drunk} of ${w.target} units today, ${Math.floor(w.due)} due by now ` +
+  `(spread over ${hour(WATER_FROM_HOUR)}–${hour(WATER_TO_HOUR)}). Shared by all chats, starts over at midnight.`
+
+// Width of a short text in the band's font, so a pill holds no blank room: digits are wide, spaces,
+// dots and slashes narrow.
+const NARROW = new Set([' ', '·', '/', '.', ',', '-', ':'])
+export const textWidth = (text: string) =>
+  Math.ceil([...text].reduce((sum, c) => sum + (NARROW.has(c) ? 3.5 : c === 'm' ? 9.5 : 6.5), 0))
+const waterLayoutWidth = (text: string) => textWidth(text) + 1
+export const waterSvgWidth = (text: string, size: Size) => Math.round(waterLayoutWidth(text) * SIZES[size])
+export const waterSvgHeight = idSvgHeight
+
+export const waterSvg = (text: string, color: string, tip: string, size: Size = DEFAULT_SIZE): string => {
+  const width = waterLayoutWidth(text)
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${waterSvgWidth(text, size)}" height="${waterSvgHeight(size)}"`,
+    ` viewBox="0 0 ${width} ${ROW_PX}"`,
+    ` font-family="-apple-system, system-ui, sans-serif" font-size="${FONT_PX}">`,
+    `<g><title>${escape(tip)}</title>`,
+    `<rect x="0" y="0" width="${width}" height="${ROW_PX}" fill="transparent"/>`,
+    `<text x="${width / 2}" y="${FONT_PX}" text-anchor="middle" fill="${hex(color)}">${escape(text)}</text>`,
+    '</g></svg>',
+  ].join('')
+}
+
+// Pills in the desktop app's right column: a tinted, rounded box for water and keystrokes. Each
+// tint is its background and its border.
+export const PILL_TINT = {
+  water: { background: 'rgba(47,141,191,0.12)', border: 'rgba(47,141,191,0.40)' },
+  keys: { background: 'rgba(138,138,138,0.10)', border: 'rgba(138,138,138,0.35)' },
+  pomodoro: { background: 'rgba(212,83,126,0.12)', border: 'rgba(212,83,126,0.40)' },
+  pomodoroBreak: { background: 'rgba(79,157,85,0.12)', border: 'rgba(79,157,85,0.40)' },
+} as const
+
+// Icons drawn in a 24-unit box, a little larger than the band's text.
+const ICONS = {
+  water: (c: string) => `<path d="M12 3C9 7 5.5 11 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 11 15 7 12 3z" fill="${c}" fill-opacity="0.25" stroke="${c}" stroke-width="2" stroke-linejoin="round"/>`,
+  keys: (c: string) =>
+    `<rect x="2.5" y="6" width="19" height="12" rx="2.5" fill="none" stroke="${c}" stroke-width="2"/>` +
+    `<path d="M6.5 10h1M10.5 10h1M14.5 10h1M8 14h8" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+  pomodoro: (c: string) =>
+    `<circle cx="12" cy="14" r="7.5" fill="${c}"/>` +
+    `<path d="M12 6.5c-1.2-1.6-3.2-2-4.5-1.6 1.2.4 2.2 1.2 2.6 2.2M12 6.5c1.2-1.6 3.2-2 4.5-1.6-1.2.4-2.2 1.2-2.6 2.2M12 6.5V3.5" ` +
+    'fill="none" stroke="#4f9d55" stroke-width="1.8" stroke-linecap="round"/>',
+  timer: (c: string) =>
+    `<circle cx="12" cy="13.5" r="7.5" fill="${c}" fill-opacity="0.25" stroke="${c}" stroke-width="2"/>` +
+    `<path d="M10 3h4M12 3v3M12 13.5V9.5M18 6.5l1.5-1.5" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"/>`,
+} as const
+export type Icon = keyof typeof ICONS
+export const ICON_COLOR: Record<Icon, string> = { water: ID_COLOR, keys: HEX.gray ?? '#8a8a8a', pomodoro: HEX.red ?? '#d9534f', timer: HEX.red ?? '#d9534f' }
+export const iconSvgSize = (size: Size) => Math.round((FONT_PX + 1) * SIZES[size])
+
+export const iconSvg = (icon: Icon, size: Size = DEFAULT_SIZE): string =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${iconSvgSize(size)}" height="${iconSvgSize(size)}" viewBox="0 0 24 24">` +
+  `${ICONS[icon](ICON_COLOR[icon])}</svg>`
+
+// The pomodoro pill: time left in the block or break, then which block of how many, as -12m 2/4;
+// waiting, only the blocks.
+export const POMODORO_COLOR: Record<PomodoroPhase, string> = { idle: 'gray', focus: '#D4537E', break: 'green' }
+
+export const pomodoroText = (p: Pomodoro) =>
+  p.phase === 'idle' ? `${p.started}/${p.target}` : `-${Math.ceil(p.leftMs / MINUTE)}m ${p.started}/${p.target}`
+
+export const pomodoroTip = (p: Pomodoro) => {
+  const left = Math.ceil(p.leftMs / MINUTE)
+  const now =
+    p.phase === 'focus'
+      ? `block ${p.started} of ${p.target}, ${left} min left`
+      : p.phase === 'break'
+        ? `break, ${left} min left`
+        : `${p.started} of ${p.target} blocks started, press ▶ for the next`
+  return (
+    `Pomodoro: ${now}. Blocks of ${POMODORO_MS / MINUTE} min with a ${SHORT_BREAK_MS / MINUTE}-min break, ` +
+    `${LONG_BREAK_MS / MINUTE} min after the last. Shared by all chats.`
+  )
+}
+
+// The timer pill: the time left as -mm:ss, then the full time in minutes as /yy.
+export const TIMER_COLOR: Record<Timer['phase'], string> = { idle: 'gray', running: '#D4537E', paused: 'orange' }
+
+export const timerText = (v: Timer) => {
+  const secs = Math.ceil(v.leftMs / 1000)
+  return `-${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`
+}
+
+export const timerTip = (v: Timer) => {
+  const now = v.phase === 'running' ? 'running' : v.phase === 'paused' ? 'paused, press ▶ to go on' : 'press ▶ to start'
+  return (
+    `Timer: ${timerText(v).slice(1)} of ${v.totalMs / MINUTE} min left, ${now}. ` +
+    `− and + change it by ${TIMER_STEP_MS / MINUTE} min, ↺ starts it over. Shared by all chats.`
+  )
 }

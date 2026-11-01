@@ -37,6 +37,19 @@ declare module 'claude-code' {
       // Keystrokes in this chat, and today across all chats as last read from the store.
       keysChat: number
       keysToday: number
+      // Water: the daily target (0 is off) and the units drunk today across all chats.
+      waterTarget: number
+      waterToday: number
+      // Pomodoro: blocks in a series (0 is off) and the series across all chats.
+      // The thousands separator picked in the settings.
+      separator: ',' | '.'
+      // Gongs for the pomodoro, on unless turned off.
+      soundsOn: boolean
+      pomodoroTarget: number
+      pomodoroState: { started: number; since: number | null }
+      // Timer, shown instead of the pomodoros: on or off, and its state across all chats.
+      timerOn: boolean
+      timerState: { totalMs: number; leftMs: number; since: number | null }
     }
   }
 }

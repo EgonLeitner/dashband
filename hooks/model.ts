@@ -11,13 +11,13 @@ export const WINDOW_MS: Record<string, number> = {
 
 export const LIMIT_LABEL: Record<string, string> = {
   five_hour: '5h',
-  seven_day: 'WL',
+  seven_day: '7d',
 }
 
 // Spelled-out names for the band, where there is room.
 export const LIMIT_NAME: Record<string, string> = {
   five_hour: '5-hour limit',
-  seven_day: 'weekly limit',
+  seven_day: '7-day limit',
 }
 
 // Pace thresholds in percentage points: used minus where usage should be by now.
@@ -187,5 +187,198 @@ export const localDay = (t: number): string => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-// A whole number with thousands separators, as 12,345.
-export const groupDigits = (n: number): string => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+// The thousands separator the person picked in the settings; the app's runtime does not report
+// the system's locale, so it is not taken from there.
+export type Separator = ',' | '.'
+export const isSeparator = (value: unknown): value is Separator => value === ',' || value === '.'
+let separator: Separator = ','
+export const setSeparator = (sep: Separator) => {
+  separator = sep
+}
+
+// A whole number with the picked thousands separator, 12,345 or 12.345.
+export const groupDigits = (n: number): string =>
+  new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(n)).replace(/,/g, separator)
+
+// Water. The day's target is spread evenly over the hours someone usually drinks; before them
+// nothing is due, after them all of it.
+export const WATER_FROM_HOUR = 7
+export const WATER_TO_HOUR = 21
+export const WATER_MAX_TARGET = 20
+
+export const isWaterTarget = (n: unknown): n is number =>
+  typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= WATER_MAX_TARGET
+
+// Units due by a time, as a fraction.
+export const waterDue = (target: number, t: number): number => {
+  const d = new Date(t)
+  const hours = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600
+  const share = (hours - WATER_FROM_HOUR) / (WATER_TO_HOUR - WATER_FROM_HOUR)
+  return target * Math.min(1, Math.max(0, share))
+}
+
+// Green on target, orange one unit behind, red two or more behind; only whole units count.
+export type WaterColor = 'green' | 'orange' | 'red'
+export const waterColor = (drunk: number, target: number, t: number): WaterColor => {
+  const behind = Math.floor(waterDue(target, t)) - drunk
+  return behind >= 2 ? 'red' : behind === 1 ? 'orange' : 'green'
+}
+
+// Pomodoro: a series of focus blocks the person starts one at a time. Each runs 25 minutes and is
+// followed by a 5-minute break, the last of the series by a 15-minute one; then it waits for the
+// next start. A started block counts, even if stopped early.
+export const POMODORO_MS = 25 * MINUTE
+export const SHORT_BREAK_MS = 5 * MINUTE
+export const LONG_BREAK_MS = 15 * MINUTE
+export const POMODORO_MAX_TARGET = 6
+
+export const isPomodoroTarget = (n: unknown): n is number =>
+  typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= POMODORO_MAX_TARGET
+
+// The series as stored: how many blocks it has started, and when the latest began (null while it waits).
+export type PomodoroState = { started: number; since: number | null }
+export type PomodoroPhase = 'idle' | 'focus' | 'break'
+export type Pomodoro = { phase: PomodoroPhase; started: number; target: number; leftMs: number }
+
+export const pomodoroAt = (state: PomodoroState, target: number, t: number): Pomodoro => {
+  // A finished series shows as a fresh one.
+  const done = { phase: 'idle' as const, started: state.started >= target ? 0 : state.started, target, leftMs: 0 }
+  if (state.since === null) return done
+  const elapsed = t - state.since
+  if (elapsed < POMODORO_MS) return { phase: 'focus', started: state.started, target, leftMs: POMODORO_MS - elapsed }
+  const pause = state.started >= target ? LONG_BREAK_MS : SHORT_BREAK_MS
+  if (elapsed < POMODORO_MS + pause) {
+    return { phase: 'break', started: state.started, target, leftMs: POMODORO_MS + pause - elapsed }
+  }
+  return done
+}
+
+// The start button: the next block of the series, or the first of a new one.
+export const startPomodoro = (state: PomodoroState, target: number, t: number): PomodoroState => {
+  const { phase, started } = pomodoroAt(state, target, t)
+  if (phase !== 'idle') return state
+  return { started: started + 1, since: t }
+}
+
+// The stop button: ends the block or the break; the block stays counted.
+export const stopPomodoro = (state: PomodoroState): PomodoroState => ({ started: state.started, since: null })
+
+// Which count of keystrokes a chat counts on: the day and the latest Reset all of it. When it
+// changes, at midnight or on a Reset all in any chat, every chat starts its own count over.
+export const keysMark = (stored: { day: string; reset?: number } | undefined, day: string): string =>
+  `${day}:${stored?.day === day ? (stored.reset ?? 0) : 0}`
+
+// The reset: no block counted, none running.
+export const resetPomodoro = (): PomodoroState => ({ started: 0, since: null })
+
+// The series as it stands today: one stored on an earlier day starts over, unless its latest block
+// or the break after it still runs, so a block begun before midnight runs to its end.
+export const pomodoroOfDay = (stored: (PomodoroState & { day: string }) | undefined, day: string, t: number): PomodoroState =>
+  stored && (stored.day === day || (stored.since !== null && t - stored.since < POMODORO_MS + LONG_BREAK_MS))
+    ? { started: stored.started, since: stored.since }
+    : resetPomodoro()
+
+// A gong for the pomodoro, made here as a WAV instead of shipped as a file: a sine with an
+// inharmonic overtone, as a bell has, fading out. Mono, 16 bit, 22,050 samples a second.
+const SAMPLE_RATE = 22_050
+const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+const base64 = (bytes: Uint8Array): string => {
+  let out = ''
+  for (let i = 0; i < bytes.length; i += 3) {
+    const [a = 0, b = 0, c = 0] = [bytes[i], bytes[i + 1], bytes[i + 2]]
+    const n = (a << 16) | (b << 8) | c
+    out += BASE64[(n >> 18) & 63]! + BASE64[(n >> 12) & 63]!
+    out += i + 1 < bytes.length ? BASE64[(n >> 6) & 63]! : '='
+    out += i + 2 < bytes.length ? BASE64[n & 63]! : '='
+  }
+  return out
+}
+
+export const gongWav = (hz: number, ms = 1500): string => {
+  const samples = Math.round((SAMPLE_RATE * ms) / 1000)
+  const bytes = new Uint8Array(44 + samples * 2)
+  const view = new DataView(bytes.buffer)
+  const text = (at: number, s: string) => [...s].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)))
+  text(0, 'RIFF')
+  view.setUint32(4, 36 + samples * 2, true)
+  text(8, 'WAVEfmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, SAMPLE_RATE, true)
+  view.setUint32(28, SAMPLE_RATE * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  text(36, 'data')
+  view.setUint32(40, samples * 2, true)
+  for (let i = 0; i < samples; i++) {
+    const t = i / SAMPLE_RATE
+    // A soft start of 5 ms keeps the first sample from clicking.
+    const envelope = Math.min(1, t / 0.005) * Math.exp(-3 * t)
+    const wave = Math.sin(2 * Math.PI * hz * t) + 0.4 * Math.sin(2 * Math.PI * hz * 2.76 * t) * Math.exp(-4 * t)
+    view.setInt16(44 + i * 2, Math.round(envelope * wave * 0.5 * 32767), true)
+  }
+  return base64(bytes)
+}
+
+// Timer: a countdown the person sets in steps and starts, pauses and resets; shown instead of the
+// pomodoros. When it runs out it waits again at its full time.
+export const TIMER_STEP_MS = 5 * MINUTE
+export const TIMER_MIN_MS = 5 * MINUTE
+export const TIMER_MAX_MS = 120 * MINUTE
+export const TIMER_DEFAULT_MS = 25 * MINUTE
+
+// The timer as stored: its full time, the time left when it last started or paused, and when it
+// started (null while it waits or is paused).
+export type TimerState = { totalMs: number; leftMs: number; since: number | null }
+export type TimerPhase = 'idle' | 'running' | 'paused'
+export type Timer = { phase: TimerPhase; leftMs: number; totalMs: number }
+
+export const freshTimer = (totalMs = TIMER_DEFAULT_MS): TimerState => ({ totalMs, leftMs: totalMs, since: null })
+
+export const isTimerState = (s: unknown): s is TimerState => {
+  const v = s as TimerState | null
+  return (
+    typeof v === 'object' && v !== null &&
+    typeof v.totalMs === 'number' && v.totalMs >= TIMER_MIN_MS && v.totalMs <= TIMER_MAX_MS &&
+    typeof v.leftMs === 'number' && v.leftMs >= 0 && v.leftMs <= v.totalMs &&
+    (v.since === null || typeof v.since === 'number')
+  )
+}
+
+// Whether a started timer has run out by t: then it waits again at its full time.
+export const timerRanOut = (s: TimerState, t: number): boolean => s.since !== null && t - s.since >= s.leftMs
+
+export const timerAt = (s: TimerState, t: number): Timer => {
+  if (s.since !== null && !timerRanOut(s, t)) return { phase: 'running', leftMs: s.leftMs - (t - s.since), totalMs: s.totalMs }
+  const leftMs = s.since !== null ? s.totalMs : s.leftMs
+  return { phase: leftMs < s.totalMs ? 'paused' : 'idle', leftMs, totalMs: s.totalMs }
+}
+
+export const startTimer = (s: TimerState, t: number): TimerState => {
+  const v = timerAt(s, t)
+  return v.phase === 'running' ? s : { totalMs: s.totalMs, leftMs: v.leftMs, since: t }
+}
+
+// The stop button pauses: the time left stays for the next start. So does turning the timer off;
+// one that ran out meanwhile is stored as waiting, so no toast comes late when it is turned on.
+export const pauseTimer = (s: TimerState, t: number): TimerState => {
+  const v = timerAt(s, t)
+  if (v.phase === 'running') return { totalMs: s.totalMs, leftMs: v.leftMs, since: null }
+  return s.since !== null ? freshTimer(s.totalMs) : s
+}
+
+export const resetTimer = (s: TimerState): TimerState => freshTimer(s.totalMs)
+
+// − and + move the full time and the time left alike, by a step within the bounds; the time left
+// never drops below 0, and a paused timer that would reach 0 waits again at its full time.
+export const stepTimer = (s: TimerState, t: number, steps: number): TimerState => {
+  const totalMs = Math.min(TIMER_MAX_MS, Math.max(TIMER_MIN_MS, s.totalMs + steps * TIMER_STEP_MS))
+  const delta = totalMs - s.totalMs
+  if (delta === 0) return s
+  const v = timerAt(s, t)
+  if (v.phase === 'running') return { totalMs, leftMs: Math.max(0, v.leftMs + delta), since: t }
+  const leftMs = v.phase === 'idle' ? totalMs : v.leftMs + delta
+  return leftMs > 0 ? { totalMs, leftMs, since: null } : freshTimer(totalMs)
+}

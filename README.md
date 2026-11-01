@@ -2,6 +2,8 @@
 
 A [Claude Code](https://code.claude.com) mod that shows the prompt cache, the context window and
 your plan limits at a glance: in the prompt footer, and as a band with bars above the prompt.
+In the Desktop app it can also keep you going at a healthy pace: pomodoros or a timer, water and
+keystrokes, each turned on in the settings.
 
 In the terminal:
 
@@ -14,7 +16,7 @@ In the Code tab of the Claude Desktop app:
 As text, the footer:
 
 ```
-● 42m · ctx 31% · 5h 12%/40% · WL 70%/96%
+● 42m · ctx 31% · 5h 12%/40% · 7d 70%/96%
 ```
 
 and the band in the terminal:
@@ -23,7 +25,7 @@ and the band in the terminal:
 ● cache 42m      ■■■■■■■■■■■□□□□□ 100% · 1h · ID: 46b74c3d
 ctx     31%      ■■■■■□□□□□□□□□□□ 310k
 5h      12/40%   ■■□□□□│□□□□□□□□□ ↻ 3h 0m
-week    70/96%   ■■■■■■■■■■■□□□□│ ↻ 7h 0m
+7d      70/96%   ■■■■■■■■■■■□□□□│ ↻ 7h 0m
 ```
 
 The Desktop app draws the band as a small graphic with finer bars, the session id and a
@@ -47,8 +49,9 @@ until they reset.
 | `5h 12%/40%` | Five-hour limit: used, and where usage would be by now if spread evenly over the window |
 | `↻ 3h 0m` (band) | Time until the limit resets |
 | `ID: 46b74c3d` (band) | The first eight characters of the session id, to tell chats apart |
-| `WL 70%/96%` | Weekly limit, the same way |
+| `7d 70%/96%` | 7-day limit, the same way |
 | `Keys: 1,234 · 8,412` (band) | Keystrokes in this chat and today across all chats; only when turned on in the settings |
+| Pomodoro, timer, water (Desktop app) | Pills beside the session id; only when turned on in the settings, see [Wellbeing](#wellbeing) |
 
 The limits are colored by pace, used minus expected:
 
@@ -77,7 +80,12 @@ every chat.
 |---|---|
 | Size | `S`, `M`, `L`: the size of the band |
 | Limits expected by | `Now`: where usage would be by now. `Midnight`: where it may be at the end of the day (local time), or at the reset if that comes first |
-| Keystrokes | `Off` (default) or `On`: count your keystrokes in the prompt box, see below |
+| Pomodoros | `Off` (default) or 1 to 6 blocks in a series. `Reset` starts the series over. Picking a number turns the timer off |
+| Timer | `Off` (default) or `On`: a countdown instead of the pomodoros. Turning it on turns the pomodoros off |
+| Water units per day | `Off` (default) or 2 to 20 in steps of 2 |
+| Numbers | `1,234` or `1.234`: the thousands separator |
+| Keystrokes | `Off` (default) or `On`: count your keystrokes in the prompt box, see below. `Reset chat` sets this chat's count to 0, `Reset all` today's count and every chat's |
+| Sounds | `Off` or `On` (default): a gong when a pomodoro block, its break or the timer ends |
 
 The cache lifetime, five minutes or one hour, is read from the session transcript. The plan
 limits appear only on a Claude subscription.
@@ -134,8 +142,9 @@ To load it in every session, including the Desktop app, add the folder to `env` 
 ## Keystrokes
 
 Off by default. Turned on, dashband counts what you type into Claude's prompt box and shows it
-under the session id: this chat, and today across all chats (the day starts over at midnight,
-local time). The terminal shows it after the session id.
+under the session id: this chat, and today across all chats. The day starts over at midnight (local
+time) or with `Reset all` in the settings, and every chat's count with it. The terminal shows it
+after the session id.
 
 To count, dashband watches each edit of the prompt box. **It keeps only numbers, never the text,
 and sends nothing anywhere.** It sees the prompt box only, no other app. The code is in
@@ -147,6 +156,27 @@ and sends nothing anywhere.** It sees the prompt box only, no other app. The cod
 - In the Desktop app the first message of a new chat does not count: the app starts Claude Code
   for a chat only once that message is sent.
 - Counts reach the band once a minute and when you send a prompt.
+
+## Wellbeing
+
+In the Desktop app, pills beside the session id help you keep a healthy pace. Each is off by
+default and turned on in the settings. They are shared by all chats; the pomodoro and water
+counts start over at midnight (local time). Hover over a pill for details. The terminal does not
+show them.
+
+**Pomodoros.** Blocks of 25 minutes, each followed by a 5-minute break, the last of the series by
+a 15-minute one. Press ▶ to start the next block, ■ to stop it; a started block counts. A gong and
+a notice mark the end of each block and break. Turning the pomodoros off stops a running block.
+
+**Timer.** Shown instead of the pomodoros: `− ▶ + -25:00 /25 ↺`. `−` and `+` change the time by
+5 minutes, from 5 to 120, and the time left with it. ▶ starts, ■ pauses, ↺ sets it back to its full
+time. At zero a gong and a notice say it is done, and it waits again at its full time. Turning the
+timer off pauses it. It keeps its time for the next start, also in other chats. While it runs, the
+band redraws every second.
+
+**Water.** Press `+` for each unit you drink, `−` to take one back. The day's target is spread
+evenly from 7:00 to 21:00: the count is green on target, orange one unit behind and red two behind,
+and a notice reminds you when it turns red.
 
 ## Limitations
 

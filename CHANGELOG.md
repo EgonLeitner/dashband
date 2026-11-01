@@ -10,11 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Keystroke count, off by default: keystrokes in this chat and today across all chats, turned on
   in the settings. Only numbers are kept, never the text.
+- `Reset chat` and `Reset all` for the keystrokes; every chat's count starts over at midnight and
+  on `Reset all`.
+- Pomodoros in the Desktop app: a series of 1 to 6 blocks of 25 minutes with breaks, started from
+  a pill beside the session id. The series starts over at midnight; `Reset` in the settings.
+- Timer in the Desktop app, instead of the pomodoros: `−`/`+` in 5-minute steps from 5 to 120,
+  start, pause and `↺` reset; a gong and a notice at zero.
+- Water in the Desktop app: a daily target of 2 to 20 units, counted with `−`/`+` and colored by
+  how far behind you are, with a notice when it turns red.
+- Gongs for the pomodoros and the timer, on by default (setting `Sounds`).
+- Setting `Numbers`: `1,234` or `1.234` as the thousands separator.
+- Tooltips on the pills in the Desktop app.
 
 ### Changed
 
 - The session id in the band reads `ID: a1b2c3d4`.
 - The band redraws only when a value it shows changes, not on every 15-second tick.
+- Settings: `Off` comes before `On` everywhere, `Sounds` sits beside `Keystrokes`, and the
+  heading is gone, to make room.
+- Keystrokes in the Desktop app appear as a pill in the right column.
 
 ## [0.2.0] - 2026-10-28
 
