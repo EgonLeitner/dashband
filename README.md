@@ -156,7 +156,7 @@ and sends nothing anywhere.** It sees the prompt box only, no other app. The cod
   does a quick burst of keys; more than 16 characters at once count as a paste.
 - In the Desktop app the first message of a new chat does not count: the app starts Claude Code
   for a chat only once that message is sent.
-- Counts reach the band once a minute and when you send a prompt.
+- Counts reach the band every 10 seconds and when you send a prompt.
 
 ## Wellbeing
 

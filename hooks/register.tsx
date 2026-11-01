@@ -153,7 +153,7 @@ const storeSetting = async ($: EngineInterface, setting: StoredSettings) => {
 }
 
 // Keystrokes, counted only while the person has turned it on. Counted in memory on every edit and
-// written once a minute and on submit, so a key costs no store write and no redraw. Only numbers
+// written every 10 seconds and on submit, so a key costs no store write and no redraw. Only numbers
 // are kept, never text. Today's count is shared by every session through the store.
 const KEYSTROKES_KEY = 'keystrokes'
 type StoredKeystrokes = { day: string; count: number; reset?: number }
