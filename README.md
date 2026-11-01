@@ -7,11 +7,11 @@ keystrokes, each turned on in the settings.
 
 In the terminal:
 
-![dashband in the terminal: a band with bars above the prompt and one colored item in the footer](docs/dashband-terminal.png)
+![dashband in the terminal: a band with bars above the prompt, the session id and the keystrokes, and one colored item in the footer](docs/dashband-terminal.png)
 
 In the Code tab of the Claude Desktop app:
 
-![dashband in the Claude Desktop app: the band above the prompt with the session id and the Settings button, cache and context in the status line, the limits in the footer](docs/dashband-desktop.png)
+![dashband in the Claude Desktop app: the band above the prompt with the session id, pills for a running pomodoro, water and keystrokes, and the settings button; cache and context in the status line, the limits in the footer](docs/dashband-desktop.png)
 
 As text, the footer:
 
@@ -28,8 +28,9 @@ ctx     31%      ■■■■■□□□□□□□□□□□ 310k
 7d      70/96%   ■■■■■■■■■■■□□□□│ ↻ 7h 0m
 ```
 
-The Desktop app draws the band as a small graphic with finer bars, the session id and a
-**Settings** button on the right. Each row shows its details as a tooltip.
+The Desktop app draws the band as a small graphic with finer bars, and on the right the session
+id, the pills you turned on and a **⚙** button for the settings. Each row shows its details as a
+tooltip.
 
 ## Why
 
@@ -50,7 +51,7 @@ until they reset.
 | `↻ 3h 0m` (band) | Time until the limit resets |
 | `ID: 46b74c3d` (band) | The first eight characters of the session id, to tell chats apart |
 | `7d 70%/96%` | 7-day limit, the same way |
-| `Keys: 1,234 · 8,412` (band) | Keystrokes in this chat and today across all chats; only when turned on in the settings |
+| `Keys: 1,234/8,412` (band) | Keystrokes in this chat and today across all chats; only when turned on in the settings. The Desktop app shows them as a pill |
 | Pomodoro, timer, water (Desktop app) | Pills beside the session id; only when turned on in the settings, see [Wellbeing](#wellbeing) |
 
 The limits are colored by pace, used minus expected:
@@ -71,10 +72,10 @@ naming the session and saying how many tokens the next request would write again
 
 ## Settings
 
-In the Desktop app, **⚙ Settings** beside the band opens the settings below it. They apply to
-every chat.
+In the Desktop app, **⚙** beside the band opens the settings below it, **⚙ Close** closes them.
+A choice applies at once, to every chat.
 
-![dashband in the Claude Desktop app with the settings open below the band: size S, M or L, and limits expected by now or by midnight](docs/dashband-desktop-settings.png)
+![dashband in the Claude Desktop app with the settings open below the band: pomodoros, timer and water under Wellbeing; size, limits, numbers, keystrokes and sounds under Display](docs/dashband-desktop-settings.png)
 
 | Setting | Choices |
 |---|---|
